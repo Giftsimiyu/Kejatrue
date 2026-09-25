@@ -1,0 +1,76 @@
+import Link from "next/link";
+import type { Property } from "../lib/properties";
+
+type PropertyCardProps = {
+  property: Property;
+  isSaved: boolean;
+  onToggleSaved: (propertyId: string) => void;
+};
+
+const money = new Intl.NumberFormat("en-KE", {
+  style: "currency",
+  currency: "KES",
+  maximumFractionDigits: 0,
+});
+
+export default function PropertyCard({
+  property,
+  isSaved,
+  onToggleSaved,
+}: PropertyCardProps) {
+  return (
+    <article className="property-card">
+      <div
+        className="property-image"
+        style={{ backgroundImage: `url(${property.image})` }}
+      >
+        <span className="match-badge">
+          {property.verified ? "Verified home" : "Worth a closer look"}
+        </span>
+        <button
+          type="button"
+          className={isSaved ? "save-button saved" : "save-button"}
+          onClick={() => onToggleSaved(property.id)}
+          aria-label={`${isSaved ? "Remove" : "Save"} ${property.title}`}
+          aria-pressed={isSaved}
+        >
+          {isSaved ? "♥" : "♡"}
+        </button>
+      </div>
+      <div className="property-body">
+        <div className="property-title-row">
+          <div>
+            <h3>{property.title}</h3>
+            <p>{property.location}</p>
+          </div>
+          <span className="property-type">{property.type}</span>
+        </div>
+        <div className="cost-row">
+          <div>
+            <small>True monthly cost</small>
+            <strong>{money.format(property.total)}</strong>
+          </div>
+          <div className="rent-note">Rent {money.format(property.rent)}</div>
+        </div>
+        <div className="intelligence-row">
+          <span>
+            <i style={{ backgroundColor: property.accent }} /> Water{" "}
+            {property.water}
+          </span>
+          <span>
+            <i style={{ backgroundColor: property.accent }} /> Network{" "}
+            {property.network}
+          </span>
+        </div>
+        <div className="card-footer">
+          <span>
+            {property.bedrooms} bedroom{property.bedrooms > 1 ? "s" : ""}
+          </span>
+          <Link className="card-link" href={`/property/${property.id}`}>
+            View intelligence <span>↗</span>
+          </Link>
+        </div>
+      </div>
+    </article>
+  );
+}
