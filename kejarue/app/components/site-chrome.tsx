@@ -9,7 +9,7 @@ type SiteNavbarProps = {
 
 export function BrandLink({ href = "/" }: { href?: string }) {
   return (
-    <Link href="/" className="brand-lockup">
+    <Link href={href} className="brand-lockup">
       <span className="brand-mark">K</span>
       <span>KejaTrue</span>
     </Link>

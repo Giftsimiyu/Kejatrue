@@ -1,255 +1,539 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
-import { createClient } from "../../backend/supabase/server";
-import { WorkspaceShell } from "../../components/workspace-shell";
-import { mapProperty, type Property } from "../../lib/properties";
-import {
-  houseHunterNavigation,
-  roles,
-  type RoleId,
-  type WorkspaceSection,
-} from "../../lib/roles";
+import { redirect } from "next/navigation";
 
-type SectionPageProps = {
-  params: Promise<{ section: string }>;
+import { getCurrentUserProfile, toRoleId } from "../../lib/auth";
+
+import { type RoleId, workspaceNavigation } from "../../lib/roles";
+
+import { SiteFooter, SiteNavbar } from "../../components/site-chrome";
+
+type DashboardProperty = {
+  id: string;
+  title: string | null;
+  location: string | null;
+  city: string | null;
+  price: number | null;
+  bedrooms: number | null;
+  bathrooms: number | null;
+  trust_score: number | null;
+  verification_status: string | null;
+  thumbnail: string | null;
+  created_at: string;
 };
 
-const sectionContent: Record<
-  WorkspaceSection,
+const roleContent: Record<
+  Exclude<RoleId, "house-hunter">,
   {
     eyebrow: string;
     title: string;
-    intro: string;
-    action?: { label: string; href: string };
+    description: string;
+    propertyLabel: string;
+    emptyTitle: string;
+    emptyDescription: string;
   }
 > = {
-  properties: {
-    eyebrow: "Property workspace",
-    title: "Keep every property in view.",
-    intro:
-      "Create listings, update the details people need and keep your published homes accurate.",
-    action: { label: "Add a property", href: "/dashboard/properties/new" },
+  agent: {
+    eyebrow: "Agent workspace",
+
+    title: "Manage your listings with confidence.",
+
+    description:
+      "Keep your properties, enquiries and trust information in one place while giving house hunters a clearer picture.",
+
+    propertyLabel: "Your listings",
+
+    emptyTitle: "Your first listing starts here.",
+
+    emptyDescription:
+      "Add a property with accurate costs, useful details and photos. Your listing can then move through KejaTrue's verification process.",
   },
-  messages: {
-    eyebrow: "Messages",
-    title: "Stay close to every conversation.",
-    intro:
-      "Questions from house hunters and updates about your properties will collect here.",
-  },
-  analytics: {
-    eyebrow: "Property analytics",
-    title: "Understand what is working.",
-    intro:
-      "Track attention, enquiries and the signals that help you improve each listing.",
-  },
-  profile: {
-    eyebrow: "Your profile",
-    title: "Make your workspace feel like yours.",
-    intro:
-      "Keep your contact details and professional information ready for the people you work with.",
-  },
-  favorites: {
-    eyebrow: "Favorites",
-    title: "Keep the homes worth returning to.",
-    intro:
-      "Your favorite properties will live here once favorites are connected to your account.",
+
+  landlord: {
+    eyebrow: "Landlord workspace",
+
+    title: "Show people the full picture.",
+
+    description:
+      "Manage your properties, respond to enquiries and build trust through accurate information about the homes you own.",
+
+    propertyLabel: "Your properties",
+
+    emptyTitle: "Add your first property.",
+
+    emptyDescription:
+      "Give prospective tenants more than a rent price. Add the property's costs, utilities, location and other information that helps them make an informed decision.",
   },
 };
 
-const money = new Intl.NumberFormat("en-KE", {
-  style: "currency",
-  currency: "KES",
-  maximumFractionDigits: 0,
-});
+function formatCurrency(value: number | null) {
+  if (value === null || Number.isNaN(value)) {
+    return "—";
+  }
 
-function isRole(value: unknown): value is RoleId {
-  return value === "house-hunter" || value === "agent" || value === "landlord";
+  return `KSh ${value.toLocaleString("en-KE")}`;
 }
 
-export default async function WorkspaceSectionPage({
-  params,
-}: SectionPageProps) {
-  const { section } = await params;
-  if (!Object.hasOwn(sectionContent, section)) notFound();
+function formatStatus(status: string | null) {
+  if (!status) {
+    return "Pending";
+  }
 
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  const userRole = user?.user_metadata?.role;
-  const role = isRole(userRole) ? userRole : "house-hunter";
-  const allowedSections =
-    role === "house-hunter"
-      ? houseHunterNavigation.map((item) => item.href.split("/").pop())
-      : ["properties", "messages", "analytics", "profile"];
-  if (!allowedSections.includes(section)) notFound();
-  const content = sectionContent[section as WorkspaceSection];
-  const roleLabel = roles.find((item) => item.id === role)?.label;
+  return status
+    .replaceAll("_", " ")
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
 
-  const { data: propertyRows } = await supabase
+function getStatusClass(status: string | null) {
+  switch (status) {
+    case "verified":
+      return "workspace-status verified";
+
+    case "rejected":
+      return "workspace-status rejected";
+
+    case "partially_verified":
+      return "workspace-status partial";
+
+    default:
+      return "workspace-status pending";
+  }
+}
+
+export default async function DashboardPage() {
+  const { supabase, user, profile } = await getCurrentUserProfile();
+
+  /*
+   * A dashboard is only available to
+   * authenticated users.
+   */
+
+  if (!user) {
+    return (
+      <main className="dashboard-page">
+        <SiteNavbar backHref="/auth" backLabel="Sign in" />
+
+        <section className="dashboard-content">
+          <div className="dashboard-heading">
+            <div>
+              <span className="eyebrow">KejaTrue workspace</span>
+
+              <h1>Sign in to continue.</h1>
+
+              <p>
+                Your professional workspace is available after authentication.
+              </p>
+            </div>
+
+            <Link href="/auth?mode=sign-in" className="dark-button">
+              Sign in <span>↗</span>
+            </Link>
+          </div>
+        </section>
+
+        <SiteFooter />
+      </main>
+    );
+  }
+
+  /*
+   * The database profile is the source
+   * of truth for the user's role.
+   */
+
+  const selectedRole = toRoleId(profile?.role ?? user.user_metadata?.role);
+
+  /*
+   * House hunters have their own experience.
+   * Never display the professional workspace
+   * to them.
+   */
+
+  if (selectedRole === "house-hunter") {
+    redirect("/");
+  }
+
+  const content = roleContent[selectedRole];
+
+  const workspaceLinks = workspaceNavigation[selectedRole];
+
+  /*
+   * Load the user's properties.
+   */
+
+  const { data: propertiesData, error: propertiesError } = await supabase
     .from("properties")
-    .select("*")
-    .order("created_at", { ascending: false });
-  const properties = (propertyRows ?? []).map(mapProperty);
+    .select(
+      `
+          id,
+          title,
+          location,
+          city,
+          price,
+          bedrooms,
+          bathrooms,
+          trust_score,
+          verification_status,
+          thumbnail,
+          created_at
+        `,
+    )
+    .eq("owner_id", user.id)
+    .order("created_at", {
+      ascending: false,
+    });
+
+  const properties = (propertiesData ?? []) as DashboardProperty[];
+
+  /*
+   * Basic workspace metrics.
+   */
+
+  const totalProperties = properties.length;
+
+  const publishedProperties = properties.filter(
+    (property) => property.verification_status !== "rejected",
+  ).length;
+
+  const pendingProperties = properties.filter(
+    (property) => property.verification_status === "pending",
+  ).length;
+
+  const trustScores = properties
+    .map((property) => property.trust_score)
+    .filter((score): score is number => typeof score === "number");
+
+  const averageTrust = trustScores.length
+    ? Math.round(
+        trustScores.reduce((total, score) => total + score, 0) /
+          trustScores.length,
+      )
+    : null;
+
+  /*
+   * Display a Kenyan date.
+   */
+
+  const dateLabel = new Intl.DateTimeFormat("en-KE", {
+    weekday: "long",
+    day: "2-digit",
+    month: "long",
+    year: "numeric",
+  }).format(new Date());
 
   return (
-    <WorkspaceShell role={role} activeHref={`/dashboard/${section}`}>
-      <div className="workspace-section-heading">
-        <div>
-          <span className="eyebrow">
-            {roleLabel} · {content.eyebrow}
+    <main className="dashboard-page">
+      {/* ======================================
+          TOP NAVIGATION
+      ======================================= */}
+
+      <SiteNavbar backHref="/" backLabel="Back to KejaTrue">
+        <div className="dashboard-user">
+          <span className="avatar small">
+            {String(profile?.full_name || user.email || "KT")
+              .trim()
+              .slice(0, 2)
+              .toUpperCase()}
           </span>
-          <h1>{content.title}</h1>
-          <p>{content.intro}</p>
-        </div>
-        {content.action && (
-          <Link href={content.action.href} className="dark-button">
-            {content.action.label} <span>↗</span>
-          </Link>
-        )}
-      </div>
-      {section === "properties" && <PropertiesPanel properties={properties} />}
-      {section === "messages" && <MessagesPanel />}
-      {section === "analytics" && <AnalyticsPanel properties={properties} />}
-      {section === "profile" && (
-        <ProfilePanel email={user?.email} role={roleLabel} />
-      )}
-      {section === "favorites" && <FavoritesPanel />}
-    </WorkspaceShell>
-  );
-}
 
-function PropertiesPanel({ properties }: { properties: Property[] }) {
-  return (
-    <div className="workspace-panel">
-      <div className="workspace-panel-heading">
-        <div>
-          <span className="eyebrow">Published inventory</span>
-          <h2>
-            {properties.length
-              ? `${properties.length} properties`
-              : "No properties yet"}
-          </h2>
+          <span>{profile?.full_name || user.email}</span>
+
+          <Link href="/dashboard/profile">Profile</Link>
         </div>
-        <Link href="/dashboard/properties/new" className="text-button">
-          Add another <span>↗</span>
-        </Link>
-      </div>
-      {properties.length ? (
-        <div className="workspace-property-list">
-          {properties.map((property) => (
+      </SiteNavbar>
+
+      {/* ======================================
+          WORKSPACE NAVIGATION
+      ======================================= */}
+
+      <section className="dashboard-content">
+        <nav className="workspace-nav" aria-label="Workspace navigation">
+          {workspaceLinks.map((item) => (
             <Link
-              href={`/property/${property.id}`}
-              className="workspace-property"
-              key={property.id}
+              href={item.href}
+              className={item.href === "/dashboard" ? "active" : ""}
+              key={item.href}
             >
-              <div>
-                <strong>{property.title}</strong>
-                <span>
-                  {property.location} · {property.type}
-                </span>
-              </div>
-              <div>
-                <strong>{money.format(property.total)}</strong>
-                <span>
-                  {property.verified ? "Verified" : "Needs verification"}
-                </span>
-              </div>
+              {item.label}
             </Link>
           ))}
-        </div>
-      ) : (
-        <div className="workspace-empty-state compact">
-          <span className="state-mark">＋</span>
-          <h2>Publish your first property.</h2>
-          <p>Add the facts people need to make a confident decision.</p>
-        </div>
-      )}
-    </div>
-  );
-}
+        </nav>
 
-function MessagesPanel() {
-  return (
-    <div className="workspace-panel">
-      <div className="workspace-panel-heading">
-        <div>
-          <span className="eyebrow">Inbox</span>
-          <h2>Your conversations</h2>
+        {/* ====================================
+            HEADER
+        ===================================== */}
+
+        <div className="dashboard-heading">
+          <div>
+            <span className="eyebrow">{content.eyebrow}</span>
+
+            <h1>{content.title}</h1>
+
+            <p>{content.description}</p>
+          </div>
+
+          <div className="dashboard-date">{dateLabel}</div>
         </div>
-        <span className="workspace-count">0 new</span>
-      </div>
-      <div className="workspace-empty-state compact">
-        <span className="state-mark">⌁</span>
-        <h2>No messages yet.</h2>
-        <p>Enquiries and property conversations will appear here.</p>
-      </div>
-    </div>
-  );
-}
 
-function AnalyticsPanel({ properties }: { properties: Property[] }) {
-  const verified = properties.filter((property) => property.verified).length;
-  const averageRent = properties.length
-    ? properties.reduce((total, property) => total + property.rent, 0) /
-      properties.length
-    : 0;
+        {/* ====================================
+            QUICK ACTION
+        ===================================== */}
 
-  return (
-    <div className="workspace-metric-grid">
-      <div className="workspace-metric">
-        <span>Published properties</span>
-        <strong>{properties.length}</strong>
-        <small>Across your workspace</small>
-      </div>
-      <div className="workspace-metric">
-        <span>Verified listings</span>
-        <strong>{verified}</strong>
-        <small>Ready to build trust</small>
-      </div>
-      <div className="workspace-metric">
-        <span>Average monthly rent</span>
-        <strong>{money.format(averageRent)}</strong>
-        <small>Based on published data</small>
-      </div>
-    </div>
-  );
-}
+        <div className="professional-quick-action">
+          <div>
+            <span className="eyebrow">Workspace action</span>
 
-function ProfilePanel({ email, role }: { email?: string; role?: string }) {
-  return (
-    <div className="workspace-panel profile-panel">
-      <span className="eyebrow">Account details</span>
-      <h2>{email || "Your KejaTrue account"}</h2>
-      <div className="profile-details">
-        <div>
-          <span>Role</span>
-          <strong>{role}</strong>
+            <h2>Ready to add a property?</h2>
+
+            <p>
+              Give house hunters the information they need to understand your
+              listing.
+            </p>
+          </div>
+
+          <Link href="/dashboard/properties/new" className="dark-button">
+            Add property <span>↗</span>
+          </Link>
         </div>
-        <div>
-          <span>Account status</span>
-          <strong>Active workspace</strong>
-        </div>
-      </div>
-      <Link href="/auth" className="text-button">
-        Manage sign-in <span>↗</span>
-      </Link>
-    </div>
-  );
-}
 
-function FavoritesPanel() {
-  return (
-    <div className="workspace-panel profile-panel">
-      <span className="eyebrow">Saved for later</span>
-      <h2>Your favorite homes will appear here.</h2>
-      <p>
-        Save a property from the listings page and we will keep it close while
-        you compare your options.
-      </p>
-      <Link href="/listings" className="dark-button">
-        Explore listings <span>↗</span>
-      </Link>
-    </div>
+        {/* ====================================
+            METRICS
+        ===================================== */}
+
+        <div className="professional-metrics">
+          <div className="professional-metric">
+            <span className="eyebrow">{content.propertyLabel}</span>
+
+            <strong>{totalProperties}</strong>
+
+            <small>Total properties in your workspace</small>
+          </div>
+
+          <div className="professional-metric">
+            <span className="eyebrow">Active listings</span>
+
+            <strong>{publishedProperties}</strong>
+
+            <small>Properties available through your account</small>
+          </div>
+
+          <div className="professional-metric">
+            <span className="eyebrow">Verification</span>
+
+            <strong>{pendingProperties}</strong>
+
+            <small>Properties awaiting verification</small>
+          </div>
+
+          <div className="professional-metric">
+            <span className="eyebrow">Trust signal</span>
+
+            <strong>
+              {averageTrust === null ? "—" : `${averageTrust}/100`}
+            </strong>
+
+            <small>Average trust score across your properties</small>
+          </div>
+        </div>
+
+        {/* ====================================
+            MAIN WORKSPACE
+        ===================================== */}
+
+        <div className="professional-grid">
+          {/* ----------------------------------
+              PROPERTIES
+          ----------------------------------- */}
+
+          <section className="professional-panel">
+            <div className="professional-panel-heading">
+              <div>
+                <span className="eyebrow">Property portfolio</span>
+
+                <h2>
+                  {totalProperties === 0
+                    ? "Start building your portfolio."
+                    : "Your properties"}
+                </h2>
+              </div>
+
+              {totalProperties > 0 && (
+                <Link href="/dashboard/properties" className="text-button">
+                  View all <span>↗</span>
+                </Link>
+              )}
+            </div>
+
+            {propertiesError && (
+              <div className="professional-message">
+                <strong>We couldn&apos;t load your properties.</strong>
+
+                <p>Refresh the page and try again.</p>
+              </div>
+            )}
+
+            {!propertiesError && properties.length === 0 && (
+              <div className="professional-empty">
+                <div className="professional-empty-mark">+</div>
+
+                <span className="eyebrow">No properties yet</span>
+
+                <h3>{content.emptyTitle}</h3>
+
+                <p>{content.emptyDescription}</p>
+
+                <Link href="/dashboard/properties/new" className="dark-button">
+                  Add your first property
+                  <span>↗</span>
+                </Link>
+              </div>
+            )}
+
+            {!propertiesError && properties.length > 0 && (
+              <div className="professional-property-list">
+                {properties.slice(0, 4).map((property) => (
+                  <Link
+                    href={`/dashboard/properties/${property.id}`}
+                    className="professional-property"
+                    key={property.id}
+                  >
+                    <div className="professional-property-image">
+                      {property.thumbnail ? (
+                        <img src={property.thumbnail} alt="" />
+                      ) : (
+                        <span>K</span>
+                      )}
+                    </div>
+
+                    <div className="professional-property-info">
+                      <strong>{property.title || "Untitled property"}</strong>
+
+                      <span>
+                        {[property.location, property.city]
+                          .filter(Boolean)
+                          .join(" · ") || "Location not reported"}
+                      </span>
+
+                      <small>
+                        {formatCurrency(property.price)}
+                        {" · "}
+                        {property.bedrooms ?? 0} bed
+                        {" · "}
+                        {property.bathrooms ?? 0} bath
+                      </small>
+                    </div>
+
+                    <div className="professional-property-status">
+                      <span
+                        className={getStatusClass(property.verification_status)}
+                      >
+                        {formatStatus(property.verification_status)}
+                      </span>
+
+                      <span className="property-trust">
+                        {property.trust_score === null
+                          ? "Trust —"
+                          : `Trust ${Math.round(property.trust_score)}`}
+
+                        <b>↗</b>
+                      </span>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            )}
+          </section>
+
+          {/* ----------------------------------
+              RIGHT COLUMN
+          ----------------------------------- */}
+
+          <aside className="professional-side">
+            {/* Quick links */}
+
+            <section className="professional-side-panel">
+              <span className="eyebrow">Workspace</span>
+
+              <h2>What would you like to do?</h2>
+
+              <div className="professional-actions">
+                <Link href="/dashboard/properties/new">
+                  <span>01</span>
+
+                  <strong>Add a property</strong>
+
+                  <b>↗</b>
+                </Link>
+
+                <Link href="/dashboard/properties">
+                  <span>02</span>
+
+                  <strong>Manage properties</strong>
+
+                  <b>↗</b>
+                </Link>
+
+                <Link href="/dashboard/messages">
+                  <span>03</span>
+
+                  <strong>View messages</strong>
+
+                  <b>↗</b>
+                </Link>
+
+                <Link href="/dashboard/analytics">
+                  <span>04</span>
+
+                  <strong>View analytics</strong>
+
+                  <b>↗</b>
+                </Link>
+              </div>
+            </section>
+
+            {/* KejaTrue principle */}
+
+            <section className="professional-principle">
+              <span className="eyebrow">The KejaTrue principle</span>
+
+              <h2>Better information builds better decisions.</h2>
+
+              <p>
+                A strong listing isn&apos;t just attractive. It helps a house
+                hunter understand what living there could actually cost and feel
+                like.
+              </p>
+            </section>
+          </aside>
+        </div>
+
+        {/* ====================================
+            LOWER WORKSPACE PROMPT
+        ===================================== */}
+
+        <section className="professional-bottom">
+          <div>
+            <span className="eyebrow">Build trust over time</span>
+
+            <h2>
+              Your KejaTrue profile grows with the quality of your information.
+            </h2>
+          </div>
+
+          <div className="professional-bottom-copy">
+            <p>
+              Complete your profile, provide accurate property information and
+              respond to enquiries to give prospective tenants a clearer
+              experience.
+            </p>
+
+            <Link href="/dashboard/profile" className="text-button">
+              Complete profile <span>↗</span>
+            </Link>
+          </div>
+        </section>
+      </section>
+
+      <SiteFooter />
+    </main>
   );
 }
