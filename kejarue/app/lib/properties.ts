@@ -1,5 +1,6 @@
 export type Property = {
   id: string;
+  slug: string;
   title: string;
   location: string;
   type: string;
@@ -37,8 +38,11 @@ export function mapProperty(row: PropertyRow): Property {
     asNumber(row.electricity_cost) +
     asNumber(row.internet_cost);
 
+  const propertyId = asText(row.id, crypto.randomUUID());
+
   return {
-    id: asText(row.id, crypto.randomUUID()),
+    id: propertyId,
+    slug: asText(row.slug, propertyId),
     title: asText(row.title, "Untitled property"),
     location: location || "Location not reported",
     type: asText(row.property_type ?? row.listing_type, "Property"),

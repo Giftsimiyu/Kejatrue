@@ -298,6 +298,13 @@ export default function PropertiesPage() {
 
           <div className="dashboard-heading-actions">
             <Link
+              href="/dashboard/properties/drafts"
+              className="dashboard-secondary-button"
+            >
+              Drafts
+            </Link>
+
+            <Link
               href="/dashboard/properties/new"
               className="dashboard-primary-button"
             >

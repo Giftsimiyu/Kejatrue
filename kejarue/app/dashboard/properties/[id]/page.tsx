@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { createClient } from "../../../backend/supabase/client";
 import { SiteFooter, SiteNavbar } from "../../../components/site-chrome";
+import VirtualTourManager from "../../../components/virtual-tour-manager";
 
 type Property = {
   id: string;
@@ -59,6 +60,14 @@ type PropertyImage = {
   caption: string | null;
   is_primary: boolean;
   display_order: number;
+};
+
+type VirtualTour = {
+  id: string;
+  property_id: string;
+  panorama_url: string;
+  room_name: string | null;
+  created_at: string;
 };
 
 const emptyCost: Cost = {
@@ -124,6 +133,7 @@ export default function PropertyManagementPage() {
     useState<Verification>(emptyVerification);
 
   const [images, setImages] = useState<PropertyImage[]>([]);
+  const [virtualTours, setVirtualTours] = useState<VirtualTour[]>([]);
   const [role, setRole] = useState<string | null>(null);
 
   const [loading, setLoading] = useState(true);
@@ -199,27 +209,36 @@ export default function PropertyManagementPage() {
         return;
       }
 
-      const [costResult, verificationResult, imagesResult] = await Promise.all([
-        supabase
-          .from("property_costs")
-          .select("*")
-          .eq("property_id", propertyId)
-          .maybeSingle(),
+      const [costResult, verificationResult, imagesResult, virtualToursResult] =
+        await Promise.all([
+          supabase
+            .from("property_costs")
+            .select("*")
+            .eq("property_id", propertyId)
+            .maybeSingle(),
 
-        supabase
-          .from("property_verifications")
-          .select("*")
-          .eq("property_id", propertyId)
-          .maybeSingle(),
+          supabase
+            .from("property_verifications")
+            .select("*")
+            .eq("property_id", propertyId)
+            .maybeSingle(),
 
-        supabase
-          .from("property_images")
-          .select("id,image_url,caption,is_primary,display_order")
-          .eq("property_id", propertyId)
-          .order("display_order", {
-            ascending: true,
-          }),
-      ]);
+          supabase
+            .from("property_images")
+            .select("id,image_url,caption,is_primary,display_order")
+            .eq("property_id", propertyId)
+            .order("display_order", {
+              ascending: true,
+            }),
+
+          supabase
+            .from("virtual_tours")
+            .select("id,property_id,panorama_url,room_name,created_at")
+            .eq("property_id", propertyId)
+            .order("created_at", {
+              ascending: true,
+            }),
+        ]);
 
       if (!mounted) return;
 
@@ -284,6 +303,8 @@ export default function PropertyManagementPage() {
 
       setImages((imagesResult.data ?? []) as PropertyImage[]);
 
+      setVirtualTours((virtualToursResult.data ?? []) as VirtualTour[]);
+
       setLoading(false);
     }
 
@@ -304,9 +325,7 @@ export default function PropertyManagementPage() {
     }));
   }
 
-  async function saveProperty(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-
+  async function persistProperty(nextStatus: "draft" | "pending") {
     if (!property) return;
 
     setSaving(true);
@@ -346,6 +365,8 @@ export default function PropertyManagementPage() {
 
       featured: form.featured,
 
+      verification_status: nextStatus,
+
       amenities: form.amenities
         .split(",")
         .map((item) => item.trim())
@@ -368,10 +389,24 @@ export default function PropertyManagementPage() {
       setErrorMessage(error.message);
     } else {
       setProperty(data as Property);
-      setMessage("Property details saved.");
+      setMessage(
+        nextStatus === "draft"
+          ? "Draft saved. This property is not visible to house hunters yet."
+          : "Property published and is now available to house hunters.",
+      );
     }
 
     setSaving(false);
+  }
+
+  async function saveProperty(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (!property) return;
+
+    await persistProperty(
+      property.verification_status === "draft" ? "draft" : "pending",
+    );
   }
 
   async function saveCosts(event: React.FormEvent<HTMLFormElement>) {
@@ -1016,9 +1051,25 @@ export default function PropertyManagementPage() {
                   KejaTrue calculations.
                 </span>
 
-                <button className="primary-button" disabled={saving}>
-                  {saving ? "Saving…" : "Save property"}
-                </button>
+                <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+                  <button
+                    type="button"
+                    className="secondary-button"
+                    disabled={saving}
+                    onClick={() => persistProperty("draft")}
+                  >
+                    {saving ? "Saving…" : "Save as draft"}
+                  </button>
+
+                  <button
+                    type="button"
+                    className="primary-button"
+                    disabled={saving}
+                    onClick={() => persistProperty("pending")}
+                  >
+                    {saving ? "Publishing…" : "Publish listing"}
+                  </button>
+                </div>
               </div>
             </form>
 
@@ -1343,6 +1394,11 @@ export default function PropertyManagementPage() {
                 </div>
               )}
             </section>
+
+            <VirtualTourManager
+              propertyId={property.id}
+              initialTours={virtualTours}
+            />
           </div>
 
           <aside className="management-sidebar">

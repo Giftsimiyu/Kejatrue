@@ -5,6 +5,8 @@ import { useParams, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "../../backend/supabase/client";
 import { SiteFooter, SiteNavbar } from "../../components/site-chrome";
+import VirtualTourViewer from "@/app/components/virtual-tour-viewer";
+import AIVirtualStaging from "@/app/components/ai-virtual-staging";
 
 type Property = {
   id: string;
@@ -50,6 +52,12 @@ type PropertyImage = {
   caption: string | null;
   is_primary: boolean | null;
   display_order: number | null;
+};
+
+type VirtualTour = {
+  id: string;
+  panorama_url: string;
+  room_name: string | null;
 };
 
 type PropertyCost = {
@@ -178,6 +186,7 @@ export default function PublicPropertyPage() {
 
   const [property, setProperty] = useState<Property | null>(null);
   const [images, setImages] = useState<PropertyImage[]>([]);
+  const [virtualTours, setVirtualTours] = useState<VirtualTour[]>([]);
   const [costs, setCosts] = useState<PropertyCost | null>(null);
   const [area, setArea] = useState<AreaIntelligence | null>(null);
   const [reviews, setReviews] = useState<Review[]>([]);
@@ -240,6 +249,7 @@ export default function PublicPropertyPage() {
         areaResult,
         reviewsResult,
         agentResult,
+        virtualToursResult,
         authResult,
       ] = await Promise.all([
         supabase
@@ -287,6 +297,12 @@ export default function PublicPropertyPage() {
               .maybeSingle()
           : Promise.resolve({ data: null }),
 
+        supabase
+          .from("virtual_tours")
+          .select("id,panorama_url,room_name")
+          .eq("property_id", propertyData.id)
+          .order("created_at", { ascending: true }),
+
         supabase.auth.getUser(),
       ]);
 
@@ -295,12 +311,13 @@ export default function PublicPropertyPage() {
       const loadedImages = (imagesResult.data ?? []) as PropertyImage[];
 
       setImages(loadedImages);
+      setVirtualTours((virtualToursResult.data ?? []) as VirtualTour[]);
       setCosts((costsResult.data ?? null) as PropertyCost | null);
       setArea((areaResult.data ?? null) as AreaIntelligence | null);
       setReviews((reviewsResult.data ?? []) as Review[]);
       setAgent((agentResult.data ?? null) as Agent | null);
 
-      const user = authResult.data.user;
+      const user = authResult?.data?.user ?? null;
 
       if (user) {
         setCurrentUserId(user.id);
@@ -408,9 +425,21 @@ export default function PublicPropertyPage() {
       return;
     }
 
-    router.push(
-      `/dashboard/messages?property=${encodeURIComponent(property.id)}`,
-    );
+    const recipientId = property.owner_id || property.agent_id;
+
+    if (!recipientId) {
+      router.push(
+        `/dashboard/messages?property=${encodeURIComponent(property.id)}`,
+      );
+      return;
+    }
+
+    const params = new URLSearchParams({
+      property: property.id,
+      to: recipientId,
+    });
+
+    router.push(`/dashboard/messages?${params.toString()}`);
   }
 
   if (loading) {
@@ -595,6 +624,16 @@ export default function PublicPropertyPage() {
               )}
             </div>
           </section>
+          {virtualTours.length > 0 && (
+            <VirtualTourViewer tours={virtualTours} />
+          )}
+
+          {galleryImages.length > 0 && (
+            <AIVirtualStaging
+              propertyId={property.id}
+              images={galleryImages.map((image) => image.image_url)}
+            />
+          )}
 
           <section className="property-main-layout">
             <div className="property-main-content">
@@ -942,7 +981,7 @@ export default function PublicPropertyPage() {
                   </div>
                 </div>
 
-                {property.lat !== null && property.lng !== null ? (
+                {property.lat != null && property.lng != null ? (
                   <div className="property-map-placeholder">
                     <div>
                       <span>⌖</span>
@@ -953,8 +992,8 @@ export default function PublicPropertyPage() {
                       </strong>
 
                       <p>
-                        Coordinates available: {property.lat.toFixed(5)},{" "}
-                        {property.lng.toFixed(5)}
+                        Coordinates available: {Number(property.lat).toFixed(5)}
+                        , {Number(property.lng).toFixed(5)}
                       </p>
                     </div>
                   </div>

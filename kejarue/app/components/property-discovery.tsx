@@ -14,14 +14,41 @@ export default function PropertyDiscovery() {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    createClient()
-      .from("properties")
-      .select("*")
-      .order("created_at", { ascending: false })
-      .then(({ data }) => {
-        if (data) setProperties(data.map(mapProperty));
-        setIsLoading(false);
-      });
+    let isMounted = true;
+
+    async function loadPublicProperties() {
+      try {
+        const { data, error } = await createClient()
+          .from("properties")
+          .select("*")
+          .or("verification_status.is.null,verification_status.neq.rejected")
+          .order("created_at", { ascending: false });
+
+        if (!isMounted) return;
+
+        if (error) {
+          console.error("Failed to load public listings.", error);
+          setProperties([]);
+          return;
+        }
+
+        setProperties((data ?? []).map(mapProperty));
+      } catch (error) {
+        if (!isMounted) return;
+        console.error("Failed to load public listings.", error);
+        setProperties([]);
+      } finally {
+        if (isMounted) {
+          setIsLoading(false);
+        }
+      }
+    }
+
+    loadPublicProperties();
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   const visibleProperties = useMemo(
@@ -112,9 +139,9 @@ export default function PropertyDiscovery() {
               <span className="eyebrow">Latest homes</span>
               <h2>Homes worth a closer look</h2>
             </div>
-            <a href="/auth" className="view-all">
-              Create account <span>↗</span>
-            </a>
+            <Link href="/dashboard/properties" className="view-all">
+              Manage listings <span>↗</span>
+            </Link>
           </div>
           <div
             className="filter-tabs"

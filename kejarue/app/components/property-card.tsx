@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import type { Property } from "../lib/properties";
 
 type PropertyCardProps = {
@@ -18,8 +19,33 @@ export default function PropertyCard({
   isSaved,
   onToggleSaved,
 }: PropertyCardProps) {
+  const router = useRouter();
+
+  const handleCardClick = () => {
+    router.push(`/property/${property.slug || property.id}`);
+  };
+
+  const handleSaveClick = (event: React.MouseEvent<HTMLButtonElement>) => {
+    event.stopPropagation();
+    onToggleSaved(property.id);
+  };
+
+  const handleCardKeyDown = (event: React.KeyboardEvent<HTMLElement>) => {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      handleCardClick();
+    }
+  };
+
   return (
-    <article className="property-card">
+    <article
+      className="property-card"
+      onClick={handleCardClick}
+      onKeyDown={handleCardKeyDown}
+      role="link"
+      tabIndex={0}
+      aria-label={`Open details for ${property.title}`}
+    >
       <div
         className="property-image"
         style={{ backgroundImage: `url(${property.image})` }}
@@ -30,7 +56,7 @@ export default function PropertyCard({
         <button
           type="button"
           className={isSaved ? "save-button saved" : "save-button"}
-          onClick={() => onToggleSaved(property.id)}
+          onClick={handleSaveClick}
           aria-label={`${isSaved ? "Remove" : "Save"} ${property.title}`}
           aria-pressed={isSaved}
         >
@@ -66,7 +92,10 @@ export default function PropertyCard({
           <span>
             {property.bedrooms} bedroom{property.bedrooms > 1 ? "s" : ""}
           </span>
-          <Link className="card-link" href={`/property/${property.id}`}>
+          <Link
+            className="card-link"
+            href={`/property/${property.slug || property.id}`}
+          >
             View intelligence <span>↗</span>
           </Link>
         </div>
