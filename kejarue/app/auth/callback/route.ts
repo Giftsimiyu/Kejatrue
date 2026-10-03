@@ -42,6 +42,18 @@ export async function GET(
       "role"
     );
 
+  const requestedNext =
+    requestUrl.searchParams.get(
+      "next"
+    );
+
+  const nextPath =
+    requestedNext?.startsWith("/") &&
+    !requestedNext.startsWith("//") &&
+    !requestedNext.includes("\\")
+      ? requestedNext
+      : null;
+
   const role = isValidRole(
     requestedRole
   )
@@ -197,6 +209,15 @@ export async function GET(
   // --------------------------------------------------
   // Redirect according to the actual role
   // --------------------------------------------------
+
+  if (nextPath) {
+    return NextResponse.redirect(
+      new URL(
+        nextPath,
+        requestUrl.origin
+      )
+    );
+  }
 
   if (
     finalRole ===

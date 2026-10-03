@@ -4,6 +4,10 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "../../backend/supabase/client";
+import {
+  getFavoriteUserIds,
+  insertFavorite,
+} from "../../lib/favorite-user";
 import { SiteFooter, SiteNavbar } from "../../components/site-chrome";
 import VirtualTourViewer from "@/app/components/virtual-tour-viewer";
 import AIVirtualStaging from "@/app/components/ai-virtual-staging";
@@ -196,8 +200,10 @@ export default function PublicPropertyPage() {
   const [error, setError] = useState("");
 
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [favoriteUserIds, setFavoriteUserIds] = useState<string[]>([]);
   const [isSaved, setIsSaved] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [favoriteError, setFavoriteError] = useState("");
 
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [showAllReviews, setShowAllReviews] = useState(false);
@@ -322,18 +328,36 @@ export default function PublicPropertyPage() {
       if (user) {
         setCurrentUserId(user.id);
 
-        const { data: favorite } = await supabase
-          .from("favorites")
-          .select("id")
-          .eq("user_id", user.id)
-          .eq("property_id", propertyData.id)
-          .maybeSingle();
+        try {
+          const resolvedFavoriteUserIds = await getFavoriteUserIds(
+            supabase,
+            user.id,
+          );
+          const { data: favorite, error: favoriteError } = await supabase
+            .from("favorites")
+            .select("id")
+            .in("user_id", resolvedFavoriteUserIds)
+            .eq("property_id", propertyData.id)
+            .maybeSingle();
 
-        if (!cancelled) {
-          setIsSaved(Boolean(favorite));
+          if (favoriteError) {
+            throw favoriteError;
+          }
+
+          if (!cancelled) {
+            setFavoriteUserIds(resolvedFavoriteUserIds);
+            setIsSaved(Boolean(favorite));
+          }
+        } catch (error) {
+          console.error("Failed to load saved property state.", error);
+          if (!cancelled) {
+            setFavoriteUserIds([]);
+            setIsSaved(false);
+          }
         }
       } else {
         setCurrentUserId(null);
+        setFavoriteUserIds([]);
         setIsSaved(false);
       }
 
@@ -366,30 +390,34 @@ export default function PublicPropertyPage() {
       return;
     }
 
-    setSaving(true);
-
-    if (isSaved) {
-      const { error: deleteError } = await supabase
-        .from("favorites")
-        .delete()
-        .eq("user_id", currentUserId)
-        .eq("property_id", property.id);
-
-      if (!deleteError) {
-        setIsSaved(false);
-      }
-    } else {
-      const { error: insertError } = await supabase.from("favorites").insert({
-        user_id: currentUserId,
-        property_id: property.id,
-      });
-
-      if (!insertError) {
-        setIsSaved(true);
-      }
+    if (favoriteUserIds.length === 0) {
+      setFavoriteError("Your account profile could not be verified. Please try again.");
+      return;
     }
 
-    setSaving(false);
+    setSaving(true);
+    setFavoriteError("");
+
+    try {
+      if (isSaved) {
+        const { error: deleteError } = await supabase
+          .from("favorites")
+          .delete()
+          .in("user_id", favoriteUserIds)
+          .eq("property_id", property.id);
+
+        if (deleteError) throw deleteError;
+        setIsSaved(false);
+      } else {
+        await insertFavorite(supabase, favoriteUserIds, property.id);
+        setIsSaved(true);
+      }
+    } catch (error) {
+      console.error("Failed to update saved property.", error);
+      setFavoriteError("We couldn’t update that favorite. Please try again.");
+    } finally {
+      setSaving(false);
+    }
   }
 
   function addToCompare() {
@@ -581,6 +609,11 @@ export default function PublicPropertyPage() {
               </button>
             </div>
           </section>
+          {favoriteError && (
+            <p className="professional-message" role="alert">
+              {favoriteError}
+            </p>
+          )}
 
           <section className="property-gallery-section">
             <div className="property-main-image">

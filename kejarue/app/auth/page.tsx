@@ -19,6 +19,13 @@ export default function AuthPage() {
   const requestedRole = searchParams.get("role");
   const requestedMode = searchParams.get("mode");
   const requestedError = searchParams.get("error");
+  const requestedNext = searchParams.get("next");
+  const nextPath =
+    requestedNext?.startsWith("/") &&
+    !requestedNext.startsWith("//") &&
+    !requestedNext.includes("\\")
+      ? requestedNext
+      : null;
 
   const [mode, setMode] = useState<"sign-in" | "sign-up">(
     requestedMode === "sign-in" ? "sign-in" : "sign-up",
@@ -47,6 +54,9 @@ export default function AuthPage() {
     const callbackUrl = new URL("/auth/callback", window.location.origin);
 
     callbackUrl.searchParams.set("role", role);
+    if (nextPath) {
+      callbackUrl.searchParams.set("next", nextPath);
+    }
 
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
@@ -131,9 +141,9 @@ export default function AuthPage() {
       }
 
       if (profile.role === "house_hunter") {
-        router.push("/");
+        router.push(nextPath ?? "/");
       } else {
-        router.push("/dashboard");
+        router.push(nextPath ?? "/dashboard");
       }
 
       return;

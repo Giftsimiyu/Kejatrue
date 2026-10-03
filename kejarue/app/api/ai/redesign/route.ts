@@ -1,317 +1,476 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
+import { InferenceClient } from "@huggingface/inference";
 import { createClient } from "../../../backend/supabase/server";
 
-const STYLE_PROMPTS: Record<string, string> = {
-  modern:
-    "modern contemporary interior design, clean lines, elegant furniture, balanced neutral palette",
+export const runtime = "nodejs";
+export const maxDuration = 120;
 
-  minimalist:
-    "minimalist interior design, uncluttered space, simple elegant furniture, neutral colors, functional layout",
+const STAGING_STYLES: Record<string, string> = {
+  modern: `
+    Modern contemporary interior design.
+    Clean lines, elegant neutral furniture, subtle decorative elements,
+    warm layered lighting, tasteful artwork, contemporary textures,
+    uncluttered composition and realistic proportions.
+  `,
 
-  scandinavian:
-    "Scandinavian interior design, light natural wood, soft neutral colors, cozy textiles, bright airy atmosphere",
+  minimalist: `
+    Minimalist interior design.
+    Simple high-quality furniture, clean open spaces, neutral tones,
+    very limited decoration, natural materials, soft lighting,
+    uncluttered and sophisticated.
+  `,
 
-  bohemian:
-    "bohemian interior design, layered textiles, plants, natural materials, artistic decor, warm earthy tones",
+  scandinavian: `
+    Scandinavian interior design.
+    Light wood, soft neutral colors, simple comfortable furniture,
+    natural textures, plants, cozy textiles, bright airy atmosphere,
+    functional and elegant styling.
+  `,
 
-  luxury:
-    "luxury interior design, sophisticated furniture, premium materials, elegant lighting, refined finishes",
+  bohemian: `
+    Modern bohemian interior design.
+    Layered textiles, tasteful plants, natural materials,
+    warm earthy colors, artistic decor, comfortable furniture,
+    sophisticated but relaxed styling.
+  `,
 
-  "warm-cozy":
-    "warm cozy interior design, comfortable furniture, soft lighting, warm neutral colors, inviting atmosphere",
+  luxury: `
+    Contemporary luxury interior design.
+    Elegant premium-looking furniture, sophisticated textures,
+    tasteful statement lighting, refined decor, neutral rich colors,
+    polished and high-end appearance without looking excessive.
+  `,
 
-  contemporary:
-    "contemporary interior design, refined modern furniture, sophisticated materials, balanced proportions",
+  "warm-cozy": `
+    Warm cozy interior design.
+    Comfortable furniture, warm lighting, soft textiles,
+    natural materials, tasteful decor, plants and a welcoming atmosphere.
+    Make the room feel comfortable and lived-in while remaining stylish.
+  `,
 
-  industrial:
-    "industrial interior design, exposed materials, metal accents, wood, urban furniture, sophisticated industrial style",
+  contemporary: `
+    Contemporary interior design.
+    Current stylish furniture, balanced neutral colors,
+    subtle statement pieces, clean architecture,
+    realistic lighting and sophisticated modern decor.
+  `,
+
+  industrial: `
+    Refined industrial interior design.
+    Modern furniture, subtle metal elements, wood textures,
+    neutral tones, tasteful exposed-material styling,
+    warm lighting and a sophisticated urban atmosphere.
+  `,
 };
 
-export async function POST(request: Request) {
+function getStylePrompt(style: string) {
+  return STAGING_STYLES[style] ?? STAGING_STYLES.modern;
+}
+
+function getFileExtension(contentType: string) {
+  if (contentType.includes("png")) return "png";
+  if (contentType.includes("webp")) return "webp";
+  return "jpg";
+}
+
+export async function POST(request: NextRequest) {
+  const supabase = await createClient();
+
   try {
-    const supabase = await createClient();
+    /*
+     * ---------------------------------------------------------
+     * 1. Authenticate the current user
+     * ---------------------------------------------------------
+     */
 
     const {
       data: { user },
+      error: authError,
     } = await supabase.auth.getUser();
 
-    if (!user) {
+    if (authError || !user) {
       return NextResponse.json(
         {
-          error: "You must be signed in to use AI virtual staging.",
+          error: "You must be signed in to use AI Virtual Staging.",
         },
-        { status: 401 },
+        { status: 401 }
       );
     }
 
+    /*
+     * ---------------------------------------------------------
+     * 2. Check environment variable
+     * ---------------------------------------------------------
+     */
+
+    const hfToken = process.env.HF_TOKEN;
+
+    if (!hfToken) {
+      console.error("HF_TOKEN is missing from environment variables.");
+
+      return NextResponse.json(
+        {
+          error:
+            "Hugging Face is not configured. Add HF_TOKEN to .env.local.",
+        },
+        { status: 500 }
+      );
+    }
+
+    /*
+     * ---------------------------------------------------------
+     * 3. Read request
+     * ---------------------------------------------------------
+     */
+
     const body = await request.json();
 
-    const propertyId = String(body.propertyId ?? "");
-    const imageUrl = String(body.imageUrl ?? "");
-    const designStyle = String(body.designStyle ?? "");
+    const propertyId = body.propertyId as string | undefined;
+    const imageUrl = body.imageUrl as string | undefined;
+    const designStyle = body.designStyle as string | undefined;
 
     if (!propertyId || !imageUrl || !designStyle) {
       return NextResponse.json(
         {
           error:
-            "Property, image and design style are required.",
+            "propertyId, imageUrl and designStyle are required.",
         },
-        { status: 400 },
-      );
-    }
-
-    const stylePrompt = STYLE_PROMPTS[designStyle];
-
-    if (!stylePrompt) {
-      return NextResponse.json(
-        {
-          error: "The selected design style is not supported.",
-        },
-        { status: 400 },
+        { status: 400 }
       );
     }
 
     /*
-     * Make sure the property exists before spending an AI request.
+     * ---------------------------------------------------------
+     * 4. Verify that the property belongs to the current user
+     * ---------------------------------------------------------
      */
-    const { data: property, error: propertyError } =
-      await supabase
-        .from("properties")
-        .select("id,title")
-        .eq("id", propertyId)
-        .maybeSingle();
 
-    if (propertyError || !property) {
+    const { data: profile, error: profileError } = await supabase
+      .from("users")
+      .select("id")
+      .eq("auth_user_id", user.id)
+      .maybeSingle();
+
+    if (profileError) {
+      console.error("User profile lookup error:", profileError);
+
+      return NextResponse.json(
+        {
+          error: "Unable to verify your account.",
+        },
+        { status: 500 }
+      );
+    }
+
+    const { data: property, error: propertyError } = await supabase
+      .from("properties")
+      .select("id, owner_id, title")
+      .eq("id", propertyId)
+      .maybeSingle();
+
+    if (propertyError) {
+      console.error("Property lookup error:", propertyError);
+
+      return NextResponse.json(
+        {
+          error: "Unable to verify the property.",
+        },
+        { status: 500 }
+      );
+    }
+
+    if (!property) {
       return NextResponse.json(
         {
           error: "Property not found.",
         },
-        { status: 404 },
+        { status: 404 }
       );
     }
 
-    const apiKey = process.env.OPENAI_API_KEY;
-
-    if (!apiKey) {
+    if (property.owner_id !== user.id && property.owner_id !== profile?.id) {
       return NextResponse.json(
         {
           error:
-            "AI staging is not configured yet. Add OPENAI_API_KEY to your environment variables.",
+            "You do not have permission to create a redesign for this property.",
         },
-        { status: 503 },
+        { status: 403 }
       );
     }
 
-    const prompt = `
-You are an expert real-estate virtual staging assistant.
-
-Redesign the interior shown in the supplied property photograph.
-
-Interior style:
-${stylePrompt}
-
-IMPORTANT:
-- Keep the room's architecture unchanged.
-- Keep the walls, windows, doors, floor plan and room proportions unchanged.
-- Do not add or remove windows or doors.
-- Preserve the camera perspective.
-- Add realistic furniture and interior decoration.
-- Make the result look like a professional real-estate photograph.
-- Do not change the property's structural features.
-- Do not invent another room.
-- Do not add people.
-- Do not add text, logos or watermarks.
-
-The result should look like the SAME ROOM professionally staged in the requested style.
-`.trim();
-
     /*
-     * Fetch the original property image.
+     * ---------------------------------------------------------
+     * 5. Download the original property image
+     * ---------------------------------------------------------
      */
+
     const imageResponse = await fetch(imageUrl);
 
     if (!imageResponse.ok) {
       return NextResponse.json(
         {
-          error:
-            "The property image could not be downloaded for AI editing.",
+          error: "Could not download the selected property image.",
         },
-        { status: 400 },
+        { status: 400 }
       );
     }
 
-    const imageBuffer = Buffer.from(
-      await imageResponse.arrayBuffer(),
-    );
+    const imageBlob = await imageResponse.blob();
+
+    if (!imageBlob.type.startsWith("image/")) {
+      return NextResponse.json(
+        {
+          error: "The selected URL is not a valid image.",
+        },
+        { status: 400 }
+      );
+    }
 
     /*
-     * OpenAI image editing endpoint.
-     *
-     * The exact image model/API configuration can be changed
-     * here without changing the frontend.
+     * Keep the original image reasonably small.
+     * This prevents unnecessarily large requests.
      */
-    const formData = new FormData();
 
-    formData.append(
-      "model",
-      "gpt-image-1",
-    );
+    const MAX_IMAGE_SIZE = 15 * 1024 * 1024;
 
-    formData.append(
-      "prompt",
-      prompt,
-    );
-
-    formData.append(
-      "size",
-      "1536x1024",
-    );
-
-    formData.append(
-      "quality",
-      "medium",
-    );
-
-    formData.append(
-      "image",
-      new Blob([imageBuffer], {
-        type:
-          imageResponse.headers.get(
-            "content-type",
-          ) || "image/jpeg",
-      }),
-      "property.jpg",
-    );
-
-    const aiResponse = await fetch(
-      "https://api.openai.com/v1/images/edits",
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
+    if (imageBlob.size > MAX_IMAGE_SIZE) {
+      return NextResponse.json(
+        {
+          error:
+            "The selected image is too large. Please use an image smaller than 15 MB.",
         },
-        body: formData,
-      },
-    );
-
-    const aiData = await aiResponse.json();
-
-    if (!aiResponse.ok) {
-      console.error(
-        "AI image generation failed:",
-        aiData,
+        { status: 400 }
       );
+    }
+
+    /*
+     * ---------------------------------------------------------
+     * 6. Build the staging prompt
+     * ---------------------------------------------------------
+     */
+
+    const styleDescription = getStylePrompt(designStyle);
+
+    const prompt = `
+You are an AI virtual staging assistant for a Kenyan real-estate
+platform called KejaTrue.
+
+Edit the supplied property photograph to virtually stage the room.
+
+DESIGN STYLE:
+${styleDescription}
+
+IMPORTANT PRESERVATION RULES:
+
+- Preserve the exact room architecture.
+- Preserve the walls and their positions.
+- Preserve windows and doors.
+- Preserve the ceiling structure.
+- Preserve the floor.
+- Preserve the camera perspective.
+- Preserve the room dimensions and proportions.
+- Do not add windows or doors that do not exist.
+- Do not remove structural features.
+- Do not change the property's location or architecture.
+- Do not create unrealistic room extensions.
+- Do not alter the photograph into a completely different room.
+
+The purpose is to show a realistic example of how the existing room
+could look when furnished and decorated.
+
+Add realistic furniture and tasteful interior decorations appropriate
+for the existing room.
+
+The result should look like a professional real-estate virtual
+staging photograph rather than an illustration.
+
+Do not add people.
+
+Do not add text, logos, watermarks or signs.
+
+Maintain realistic lighting, shadows, materials and perspective.
+`;
+
+    /*
+     * ---------------------------------------------------------
+     * 7. Call Hugging Face
+     * ---------------------------------------------------------
+     */
+
+    const hf = new InferenceClient(hfToken);
+
+    let generatedImage: Blob;
+
+    try {
+      generatedImage = await hf.imageToImage({
+        inputs: imageBlob,
+        model: "black-forest-labs/FLUX.1-Kontext-dev",
+        provider: "fal-ai",
+        parameters: { prompt },
+      });
+    } catch (aiError) {
+      console.error("Hugging Face image generation error:", aiError);
+
+      const errorMessage =
+        aiError instanceof Error
+          ? aiError.message
+          : "The AI image generation request failed.";
+
+      /*
+       * Record failed generation attempt.
+       */
+
+      await supabase.from("ai_redesigns").insert({
+        user_id: user.id,
+        property_id: propertyId,
+        original_image: imageUrl,
+        generated_image: null,
+        design_style: designStyle,
+        prompt,
+        status: "failed",
+        error_message: errorMessage,
+      });
 
       return NextResponse.json(
         {
           error:
-            aiData?.error?.message ||
-            "The AI could not generate the redesign.",
+            "AI image generation failed. Your Hugging Face free inference allowance may be exhausted, or the selected model may currently be unavailable.",
+          details: errorMessage,
         },
-        { status: 500 },
+        { status: 502 }
       );
     }
-
-    const generatedBase64 =
-      aiData?.data?.[0]?.b64_json;
-
-    if (!generatedBase64) {
-      return NextResponse.json(
-        {
-          error:
-            "The AI response did not contain a generated image.",
-        },
-        { status: 500 },
-      );
-    }
-
-    const generatedBuffer = Buffer.from(
-      generatedBase64,
-      "base64",
-    );
 
     /*
-     * Store the generated image in Supabase Storage.
+     * ---------------------------------------------------------
+     * 8. Convert generated image to ArrayBuffer
+     * ---------------------------------------------------------
      */
+
+    const generatedBuffer = await generatedImage.arrayBuffer();
+
+    if (!generatedBuffer.byteLength) {
+      return NextResponse.json(
+        {
+          error: "The AI returned an empty image.",
+        },
+        { status: 502 }
+      );
+    }
+
+    /*
+     * ---------------------------------------------------------
+     * 9. Upload generated image to Supabase Storage
+     * ---------------------------------------------------------
+     */
+
+    const generatedContentType =
+      generatedImage.type || "image/jpeg";
+
+    const extension = getFileExtension(generatedContentType);
+
     const storagePath =
-      `ai-redesigns/${user.id}/${propertyId}/${Date.now()}.png`;
+      `ai-staging/${user.id}/${propertyId}/${crypto.randomUUID()}.${extension}`;
 
-    const { error: uploadError } =
-      await supabase.storage
-        .from("property-images")
-        .upload(
-          storagePath,
-          generatedBuffer,
-          {
-            contentType: "image/png",
-            upsert: false,
-          },
-        );
+    const { error: uploadError } = await supabase.storage
+      .from("property-images")
+      .upload(storagePath, generatedBuffer, {
+        contentType: generatedContentType,
+        upsert: false,
+      });
 
     if (uploadError) {
-      console.error(
-        "Generated image upload failed:",
-        uploadError,
-      );
+      console.error("AI image storage error:", uploadError);
 
       return NextResponse.json(
         {
           error:
             "The AI generated the image, but KejaTrue could not save it.",
         },
-        { status: 500 },
+        { status: 500 }
       );
     }
 
+    /*
+     * ---------------------------------------------------------
+     * 10. Get public URL
+     * ---------------------------------------------------------
+     */
+
     const {
-      data: publicUrlData,
+      data: { publicUrl },
     } = supabase.storage
       .from("property-images")
       .getPublicUrl(storagePath);
 
-    const generatedImage =
-      publicUrlData.publicUrl;
-
     /*
-     * Save the redesign record.
+     * ---------------------------------------------------------
+     * 11. Save generation record
+     * ---------------------------------------------------------
      */
-    const { error: redesignError } =
-      await supabase
-        .from("ai_redesigns")
-        .insert({
-          user_id: user.id,
-          property_id: propertyId,
-          original_image: imageUrl,
-          generated_image: generatedImage,
-          design_style: designStyle,
-          prompt,
-          status: "completed",
-        });
+
+    const { data: redesign, error: redesignError } = await supabase
+      .from("ai_redesigns")
+      .insert({
+        user_id: user.id,
+        property_id: propertyId,
+        original_image: imageUrl,
+        generated_image: publicUrl,
+        design_style: designStyle,
+        prompt,
+        status: "completed",
+        error_message: null,
+      })
+      .select(
+        "id, property_id, original_image, generated_image, design_style, prompt, status, created_at"
+      )
+      .single();
 
     if (redesignError) {
       console.error(
-        "Redesign record failed:",
-        redesignError,
+        "AI redesign database error:",
+        redesignError
+      );
+
+      /*
+       * Clean up the generated file if the database insert failed.
+       */
+
+      await supabase.storage
+        .from("property-images")
+        .remove([storagePath]);
+
+      return NextResponse.json(
+        {
+          error:
+            "The AI generated the image, but KejaTrue could not save the redesign record.",
+        },
+        { status: 500 }
       );
     }
 
+    /*
+     * ---------------------------------------------------------
+     * 12. Return result to frontend
+     * ---------------------------------------------------------
+     */
+
     return NextResponse.json({
       success: true,
-      generatedImage,
-      style: designStyle,
+      generatedImage: publicUrl,
+      redesign,
     });
   } catch (error) {
-    console.error(
-      "AI redesign route error:",
-      error,
-    );
+    console.error("AI redesign route error:", error);
 
     return NextResponse.json(
       {
         error:
-          "Something went wrong while creating the virtual staging.",
+          error instanceof Error
+            ? error.message
+            : "Something went wrong while creating the AI redesign.",
       },
-      { status: 500 },
+      { status: 500 }
     );
   }
 }

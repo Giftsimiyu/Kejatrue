@@ -1,24 +1,31 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "../backend/supabase/client";
+import { getFavoriteUserIds, insertFavorite } from "../lib/favorite-user";
 import { mapProperty, type Property } from "../lib/properties";
 import { BrandLink, SiteFooter } from "./site-chrome";
 import PropertyCard from "./property-card";
 
 export default function PropertyDiscovery() {
+  const router = useRouter();
   const [activeFilter, setActiveFilter] = useState("All homes");
   const [saved, setSaved] = useState<string[]>([]);
   const [properties, setProperties] = useState<Property[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [favoriteUserIds, setFavoriteUserIds] = useState<string[]>([]);
+  const [savingPropertyIds, setSavingPropertyIds] = useState<string[]>([]);
+  const [favoriteError, setFavoriteError] = useState("");
 
   useEffect(() => {
     let isMounted = true;
+    const supabase = createClient();
 
     async function loadPublicProperties() {
       try {
-        const { data, error } = await createClient()
+        const { data, error } = await supabase
           .from("properties")
           .select("*")
           .or("verification_status.is.null,verification_status.neq.rejected")
@@ -27,16 +34,52 @@ export default function PropertyDiscovery() {
         if (!isMounted) return;
 
         if (error) {
-          console.error("Failed to load public listings.", error);
-          setProperties([]);
-          return;
+          throw error;
         }
 
-        setProperties((data ?? []).map(mapProperty));
+        if (isMounted) {
+          setProperties((data ?? []).map(mapProperty));
+        }
       } catch (error) {
         if (!isMounted) return;
         console.error("Failed to load public listings.", error);
         setProperties([]);
+      }
+
+      try {
+        const {
+          data: { user },
+          error: authError,
+        } = await supabase.auth.getUser();
+
+        if (authError) {
+          throw authError;
+        }
+
+        if (!isMounted || !user) return;
+
+        const favoriteIds = await getFavoriteUserIds(supabase, user.id);
+        if (!isMounted) return;
+        setFavoriteUserIds(favoriteIds);
+
+        const { data: favorites, error: favoritesError } = await supabase
+          .from("favorites")
+          .select("property_id")
+          .in("user_id", favoriteIds);
+
+        if (favoritesError) {
+          throw favoritesError;
+        }
+
+        if (isMounted) {
+          setSaved([
+            ...new Set((favorites ?? []).map((favorite) => favorite.property_id)),
+          ]);
+        }
+      } catch (error) {
+        if (!isMounted) return;
+        console.error("Failed to load saved properties.", error);
+        setFavoriteError("Your saved homes could not be loaded.");
       } finally {
         if (isMounted) {
           setIsLoading(false);
@@ -50,6 +93,52 @@ export default function PropertyDiscovery() {
       isMounted = false;
     };
   }, []);
+
+  async function toggleSaved(propertyId: string) {
+    if (favoriteUserIds.length === 0) {
+      router.push(
+        `/auth?mode=sign-in&next=${encodeURIComponent("/listings")}`,
+      );
+      return;
+    }
+
+    if (savingPropertyIds.includes(propertyId)) return;
+
+    setSavingPropertyIds((current) => [...current, propertyId]);
+    setFavoriteError("");
+
+    try {
+      const supabase = createClient();
+      const isSaved = saved.includes(propertyId);
+      if (isSaved) {
+        const { error } = await supabase
+            .from("favorites")
+            .delete()
+            .in("user_id", favoriteUserIds)
+            .eq("property_id", propertyId);
+
+        if (error) {
+          throw error;
+        }
+      } else {
+        await insertFavorite(supabase, favoriteUserIds, propertyId);
+      }
+
+      setSaved((current) =>
+        isSaved
+          ? current.filter((id) => id !== propertyId)
+          : [...current, propertyId],
+      );
+    } catch (error) {
+      console.error("Failed to update saved property.", error);
+      setFavoriteError("We couldn’t update that favorite. Please try again.");
+    } finally {
+      setSavingPropertyIds((current) =>
+        current.filter((id) => id !== propertyId),
+      );
+    }
+
+  }
 
   const visibleProperties = useMemo(
     () =>
@@ -161,6 +250,11 @@ export default function PropertyDiscovery() {
               </button>
             ))}
           </div>
+          {favoriteError && (
+            <div className="professional-message" role="alert">
+              {favoriteError}
+            </div>
+          )}
           {isLoading ? (
             <div className="listing-state">
               <span className="state-mark">⌁</span>
@@ -183,13 +277,8 @@ export default function PropertyDiscovery() {
                   key={property.id}
                   property={property}
                   isSaved={saved.includes(property.id)}
-                  onToggleSaved={(propertyId) =>
-                    setSaved((current) =>
-                      current.includes(propertyId)
-                        ? current.filter((item) => item !== propertyId)
-                        : [...current, propertyId],
-                    )
-                  }
+                  isSaving={savingPropertyIds.includes(property.id)}
+                  onToggleSaved={toggleSaved}
                 />
               ))}
             </div>

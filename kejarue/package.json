@@ -9,6 +9,7 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@huggingface/inference": "^4.13.30",
     "@photo-sphere-viewer/core": "^5.15.1",
     "@supabase/ssr": "^0.12.7",
     "@supabase/supabase-js": "^2.116.0",

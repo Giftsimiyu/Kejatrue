@@ -6,6 +6,7 @@ type PropertyCardProps = {
   property: Property;
   isSaved: boolean;
   onToggleSaved: (propertyId: string) => void;
+  isSaving?: boolean;
 };
 
 const money = new Intl.NumberFormat("en-KE", {
@@ -18,6 +19,7 @@ export default function PropertyCard({
   property,
   isSaved,
   onToggleSaved,
+  isSaving = false,
 }: PropertyCardProps) {
   const router = useRouter();
 
@@ -57,8 +59,10 @@ export default function PropertyCard({
           type="button"
           className={isSaved ? "save-button saved" : "save-button"}
           onClick={handleSaveClick}
+          disabled={isSaving}
           aria-label={`${isSaved ? "Remove" : "Save"} ${property.title}`}
           aria-pressed={isSaved}
+          aria-busy={isSaving}
         >
           {isSaved ? "♥" : "♡"}
         </button>
