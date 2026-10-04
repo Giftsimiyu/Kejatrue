@@ -40,8 +40,10 @@ export default function PropertyVisitBooking({
   const [slots, setSlots] = useState<VisitSlot[]>([]);
   const [selectedDate, setSelectedDate] = useState("");
   const [selectedSlot, setSelectedSlot] = useState<VisitSlot | null>(null);
-  const [loading, setLoading] = useState(false);
+
+  const [loadingSlots, setLoadingSlots] = useState(false);
   const [booking, setBooking] = useState(false);
+
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
@@ -49,7 +51,7 @@ export default function PropertyVisitBooking({
     if (!open) return;
 
     async function loadSlots() {
-      setLoading(true);
+      setLoadingSlots(true);
       setError("");
 
       const { data, error: slotsError } = await supabase
@@ -61,18 +63,29 @@ export default function PropertyVisitBooking({
         .order("starts_at", { ascending: true });
 
       if (slotsError) {
-        setError(slotsError.message);
-      } else {
-        setSlots((data ?? []) as VisitSlot[]);
-
-        if (data?.length) {
-          setSelectedDate(
-            new Date(data[0].starts_at).toISOString().slice(0, 10),
-          );
-        }
+        console.error("Failed to load visit slots:", slotsError);
+        setError(`Unable to load available visits: ${slotsError.message}`);
+        setSlots([]);
+        setLoadingSlots(false);
+        return;
       }
 
-      setLoading(false);
+      const availableSlots = (data ?? []) as VisitSlot[];
+
+      setSlots(availableSlots);
+
+      if (availableSlots.length > 0) {
+        const firstDate = new Date(availableSlots[0].starts_at)
+          .toISOString()
+          .slice(0, 10);
+
+        setSelectedDate((current) => current || firstDate);
+      } else {
+        setSelectedDate("");
+        setSelectedSlot(null);
+      }
+
+      setLoadingSlots(false);
     }
 
     loadSlots();
@@ -88,10 +101,12 @@ export default function PropertyVisitBooking({
     );
   }, [slots]);
 
-  const dateSlots = slots.filter(
-    (slot) =>
-      new Date(slot.starts_at).toISOString().slice(0, 10) === selectedDate,
-  );
+  const dateSlots = useMemo(() => {
+    return slots.filter(
+      (slot) =>
+        new Date(slot.starts_at).toISOString().slice(0, 10) === selectedDate,
+    );
+  }, [slots, selectedDate]);
 
   async function bookVisit() {
     if (!selectedSlot) {
@@ -99,14 +114,7 @@ export default function PropertyVisitBooking({
       return;
     }
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) {
-      window.location.href = `/auth?mode=sign-in&next=${encodeURIComponent(
-        `/property/${propertyId}`,
-      )}`;
+    if (booking) {
       return;
     }
 
@@ -114,69 +122,94 @@ export default function PropertyVisitBooking({
     setError("");
     setMessage("");
 
-    const { data: property } = await supabase
-      .from("properties")
-      .select("owner_id,agent_id")
-      .eq("id", propertyId)
-      .maybeSingle();
+    try {
+      const {
+        data: { user },
+        error: authError,
+      } = await supabase.auth.getUser();
 
-    if (!property) {
-      setError("This property is no longer available.");
-      setBooking(false);
-      return;
-    }
+      if (authError) {
+        console.error("Authentication error:", authError);
 
-    let hostUserId = property.owner_id;
-
-    if (property.agent_id) {
-      const { data: agent } = await supabase
-        .from("agents")
-        .select("user_id")
-        .eq("id", property.agent_id)
-        .maybeSingle();
-
-      if (agent?.user_id) {
-        hostUserId = agent.user_id;
+        setError("We could not verify your account. Please sign in again.");
+        return;
       }
-    }
 
-    const { error: bookingError } = await supabase
-      .from("property_visit_requests")
-      .insert({
-        property_id: propertyId,
-        slot_id: selectedSlot.id,
-        house_hunter_id: user.id,
-        host_user_id: hostUserId,
-        status: "requested",
+      if (!user) {
+        window.location.href = `/auth?mode=sign-in&next=${encodeURIComponent(
+          `/property/${propertyId}`,
+        )}`;
+        return;
+      }
+
+      console.log("Requesting property visit:", {
+        propertyId,
+        slotId: selectedSlot.id,
+        userId: user.id,
       });
 
-    if (bookingError) {
-      setError(
-        bookingError.code === "23505"
-          ? "That visit slot has just been booked. Please choose another."
-          : bookingError.message,
+      const { data, error: bookingError } = await supabase.rpc(
+        "request_property_visit",
+        {
+          p_slot_id: selectedSlot.id,
+          p_notes: null,
+        },
       );
+
+      console.log("Property visit RPC response:", {
+        data,
+        error: bookingError,
+      });
+
+      if (bookingError) {
+        console.error("Property visit request failed:", bookingError);
+
+        if (
+          bookingError.message
+            ?.toLowerCase()
+            .includes("already have an active visit request")
+        ) {
+          setError("You already have an active visit request for this visit.");
+        } else if (
+          bookingError.message?.toLowerCase().includes("no longer available")
+        ) {
+          setError(
+            "That visit time is no longer available. Please choose another time.",
+          );
+        } else if (bookingError.code === "PGRST202") {
+          setError(
+            "The visit booking service is not available yet. Please refresh the page and try again.",
+          );
+        } else if (bookingError.code === "42501") {
+          setError(
+            "You do not currently have permission to request a visit. Please make sure you are signed in as a house hunter.",
+          );
+        } else {
+          setError(bookingError.message);
+        }
+
+        return;
+      }
+
+      const bookedDate = formatDate(selectedSlot.starts_at);
+      const bookedTime = formatTime(selectedSlot.starts_at);
+
+      setMessage(`Visit request sent for ${bookedDate} at ${bookedTime}.`);
+
+      setSlots((current) =>
+        current.filter((slot) => slot.id !== selectedSlot.id),
+      );
+
+      setSelectedSlot(null);
+    } catch (unexpectedError) {
+      console.error("Unexpected property visit error:", unexpectedError);
+
+      setError(
+        "Something went wrong while requesting the visit. Please try again.",
+      );
+    } finally {
       setBooking(false);
-      return;
     }
-
-    await supabase
-      .from("property_visit_slots")
-      .update({ is_available: false })
-      .eq("id", selectedSlot.id);
-
-    setMessage(
-      `Visit request sent for ${formatDate(
-        selectedSlot.starts_at,
-      )} at ${formatTime(selectedSlot.starts_at)}.`,
-    );
-
-    setSlots((current) =>
-      current.filter((slot) => slot.id !== selectedSlot.id),
-    );
-
-    setSelectedSlot(null);
-    setBooking(false);
   }
 
   return (
@@ -184,7 +217,11 @@ export default function PropertyVisitBooking({
       <button
         type="button"
         className="property-primary-button property-full-button"
-        onClick={() => setOpen(true)}
+        onClick={() => {
+          setOpen(true);
+          setMessage("");
+          setError("");
+        }}
       >
         Book a visit
       </button>
@@ -193,7 +230,7 @@ export default function PropertyVisitBooking({
         <div
           className="visit-booking-overlay"
           onMouseDown={(event) => {
-            if (event.target === event.currentTarget) {
+            if (event.target === event.currentTarget && !booking) {
               setOpen(false);
             }
           }}
@@ -202,8 +239,13 @@ export default function PropertyVisitBooking({
             <button
               type="button"
               className="visit-booking-close"
-              onClick={() => setOpen(false)}
+              onClick={() => {
+                if (!booking) {
+                  setOpen(false);
+                }
+              }}
               aria-label="Close booking"
+              disabled={booking}
             >
               ×
             </button>
@@ -223,11 +265,15 @@ export default function PropertyVisitBooking({
 
             {error && <div className="management-error-message">{error}</div>}
 
-            {loading ? (
-              <p>Loading available visits...</p>
+            {loadingSlots ? (
+              <div className="property-data-empty">
+                <strong>Loading available visits...</strong>
+                <p>Checking the latest viewing times for this property.</p>
+              </div>
             ) : dates.length === 0 ? (
               <div className="property-data-empty">
                 <strong>No visits are currently available.</strong>
+
                 <p>
                   The listing contact has not published any available viewing
                   times yet.
@@ -263,40 +309,54 @@ export default function PropertyVisitBooking({
                         setSelectedDate(date);
                         setSelectedSlot(null);
                       }}
+                      disabled={booking}
                     >
                       <strong>
                         {new Date(`${date}T00:00:00`).toLocaleDateString(
                           "en-KE",
-                          { weekday: "short" },
+                          {
+                            weekday: "short",
+                          },
                         )}
                       </strong>
 
                       <span>
                         {new Date(`${date}T00:00:00`).toLocaleDateString(
                           "en-KE",
-                          { day: "numeric", month: "short" },
+                          {
+                            day: "numeric",
+                            month: "short",
+                          },
                         )}
                       </span>
                     </button>
                   ))}
                 </div>
 
-                <div className="visit-time-grid">
-                  {dateSlots.map((slot) => (
-                    <button
-                      type="button"
-                      key={slot.id}
-                      className={
-                        selectedSlot?.id === slot.id
-                          ? "visit-time-button is-active"
-                          : "visit-time-button"
-                      }
-                      onClick={() => setSelectedSlot(slot)}
-                    >
-                      {formatTime(slot.starts_at)}
-                    </button>
-                  ))}
-                </div>
+                {dateSlots.length > 0 ? (
+                  <div className="visit-time-grid">
+                    {dateSlots.map((slot) => (
+                      <button
+                        type="button"
+                        key={slot.id}
+                        className={
+                          selectedSlot?.id === slot.id
+                            ? "visit-time-button is-active"
+                            : "visit-time-button"
+                        }
+                        onClick={() => setSelectedSlot(slot)}
+                        disabled={booking}
+                      >
+                        {formatTime(slot.starts_at)}
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="property-data-empty">
+                    <strong>No times available on this date.</strong>
+                    <p>Choose another date to see available viewing times.</p>
+                  </div>
+                )}
 
                 <button
                   type="button"

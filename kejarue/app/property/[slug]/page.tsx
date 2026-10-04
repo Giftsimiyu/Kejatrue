@@ -1172,7 +1172,7 @@ export default function PublicPropertyPage() {
 
                 <PropertyVisitBooking
                   propertyId={property.id}
-                  propertyTitle={property.title}
+                  propertyTitle={property.title || "Property"}
                 />
 
                 <button
