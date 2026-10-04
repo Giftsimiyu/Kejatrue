@@ -25,9 +25,19 @@ export default function PropertyDiscovery() {
 
     async function loadPublicProperties() {
       try {
+        const { error: staleListingsError } = await supabase.rpc(
+          "mark_stale_listings",
+        );
+
+        if (staleListingsError) {
+          throw staleListingsError;
+        }
+
         const { data, error } = await supabase
           .from("properties")
           .select("*")
+          .eq("listing_status", "active")
+          .eq("moderation_status", "clear")
           .or("verification_status.is.null,verification_status.neq.rejected")
           .order("created_at", { ascending: false });
 

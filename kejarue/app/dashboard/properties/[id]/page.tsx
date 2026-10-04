@@ -6,6 +6,7 @@ import { useParams, useRouter } from "next/navigation";
 import { createClient } from "../../../backend/supabase/client";
 import { SiteFooter, SiteNavbar } from "../../../components/site-chrome";
 import VirtualTourManager from "../../../components/virtual-tour-manager";
+import VisitAvailabilityManager from "../../../components/visit-availability-manager";
 
 type Property = {
   id: string;
@@ -162,6 +163,15 @@ export default function PropertyManagementPage() {
     tags: "",
   });
 
+  const [visitSlots, setVisitSlots] = useState<
+    {
+      id: string;
+      starts_at: string;
+      ends_at: string;
+      is_available: boolean;
+    }[]
+  >([]);
+
   useEffect(() => {
     let mounted = true;
 
@@ -209,36 +219,47 @@ export default function PropertyManagementPage() {
         return;
       }
 
-      const [costResult, verificationResult, imagesResult, virtualToursResult] =
-        await Promise.all([
-          supabase
-            .from("property_costs")
-            .select("*")
-            .eq("property_id", propertyId)
-            .maybeSingle(),
+      const [
+        costResult,
+        verificationResult,
+        imagesResult,
+        virtualToursResult,
+        visitSlotsResult,
+      ] = await Promise.all([
+        supabase
+          .from("property_costs")
+          .select("*")
+          .eq("property_id", propertyId)
+          .maybeSingle(),
 
-          supabase
-            .from("property_verifications")
-            .select("*")
-            .eq("property_id", propertyId)
-            .maybeSingle(),
+        supabase
+          .from("property_verifications")
+          .select("*")
+          .eq("property_id", propertyId)
+          .maybeSingle(),
 
-          supabase
-            .from("property_images")
-            .select("id,image_url,caption,is_primary,display_order")
-            .eq("property_id", propertyId)
-            .order("display_order", {
-              ascending: true,
-            }),
+        supabase
+          .from("property_images")
+          .select("id,image_url,caption,is_primary,display_order")
+          .eq("property_id", propertyId)
+          .order("display_order", {
+            ascending: true,
+          }),
 
-          supabase
-            .from("virtual_tours")
-            .select("id,property_id,panorama_url,room_name,created_at")
-            .eq("property_id", propertyId)
-            .order("created_at", {
-              ascending: true,
-            }),
-        ]);
+        supabase
+          .from("virtual_tours")
+          .select("id,property_id,panorama_url,room_name,created_at")
+          .eq("property_id", propertyId)
+          .order("created_at", {
+            ascending: true,
+          }),
+
+        supabase
+          .from("property_visit_slots")
+          .select("id,starts_at,ends_at,is_available")
+          .eq("property_id", propertyId)
+          .order("starts_at", { ascending: true }),
+      ]);
 
       if (!mounted) return;
 
@@ -304,6 +325,8 @@ export default function PropertyManagementPage() {
       setImages((imagesResult.data ?? []) as PropertyImage[]);
 
       setVirtualTours((virtualToursResult.data ?? []) as VirtualTour[]);
+
+      setVisitSlots((visitSlotsResult.data ?? []) as typeof visitSlots);
 
       setLoading(false);
     }
@@ -1398,6 +1421,11 @@ export default function PropertyManagementPage() {
             <VirtualTourManager
               propertyId={property.id}
               initialTours={virtualTours}
+            />
+
+            <VisitAvailabilityManager
+              propertyId={property.id}
+              initialSlots={visitSlots}
             />
           </div>
 

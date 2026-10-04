@@ -4,13 +4,11 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "../../backend/supabase/client";
-import {
-  getFavoriteUserIds,
-  insertFavorite,
-} from "../../lib/favorite-user";
+import { getFavoriteUserIds, insertFavorite } from "../../lib/favorite-user";
 import { SiteFooter, SiteNavbar } from "../../components/site-chrome";
 import VirtualTourViewer from "@/app/components/virtual-tour-viewer";
 import AIVirtualStaging from "@/app/components/ai-virtual-staging";
+import PropertyVisitBooking from "@/app/components/property-visit-booking";
 
 type Property = {
   id: string;
@@ -103,12 +101,25 @@ type Review = {
 
 type Agent = {
   id: string;
+  user_id: string;
   company: string | null;
   bio: string | null;
   image: string | null;
   phone: string | null;
   rating: number | null;
   verified: boolean | null;
+  earb_registration_number: string | null;
+  earb_registration_verified: boolean | null;
+  practicing_certificate_verified: boolean | null;
+};
+
+type OwnerProfile = {
+  id: string;
+  full_name: string | null;
+  email: string | null;
+  avatar: string | null;
+  phone: string | null;
+  role: string;
 };
 
 function formatCurrency(value: number | null | undefined) {
@@ -195,6 +206,7 @@ export default function PublicPropertyPage() {
   const [area, setArea] = useState<AreaIntelligence | null>(null);
   const [reviews, setReviews] = useState<Review[]>([]);
   const [agent, setAgent] = useState<Agent | null>(null);
+  const [ownerProfile, setOwnerProfile] = useState<OwnerProfile | null>(null);
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -224,25 +236,28 @@ export default function PublicPropertyPage() {
         .maybeSingle();
 
       let propertyData = bySlug as Property | null;
+      let propertyLookupError = slugError;
 
-      /*
-       * If the slug lookup fails and the route parameter looks like
-       * a UUID, allow the property ID to work as a fallback.
-       */
-      if (!propertyData && slugError === null) {
-        const { data: byId } = await supabase
+      if (!propertyData) {
+        const { data: byId, error: idError } = await supabase
           .from("properties")
           .select("*")
           .eq("id", slug)
           .maybeSingle();
 
         propertyData = byId as Property | null;
+        propertyLookupError = idError ?? propertyLookupError;
       }
 
       if (cancelled) return;
 
       if (!propertyData) {
-        setError("This property could not be found.");
+        if (propertyLookupError) {
+          console.error("Failed to look up property.", propertyLookupError);
+          setError("We couldn’t load this property. Please try again.");
+        } else {
+          setError("This property could not be found.");
+        }
         setLoading(false);
         return;
       }
@@ -251,6 +266,7 @@ export default function PublicPropertyPage() {
 
       const [
         imagesResult,
+        ownerResult,
         costsResult,
         areaResult,
         reviewsResult,
@@ -266,6 +282,12 @@ export default function PublicPropertyPage() {
             ascending: true,
             nullsFirst: false,
           }),
+
+        supabase
+          .from("users")
+          .select("id,full_name,email,avatar,phone,role")
+          .eq("id", propertyData.owner_id)
+          .maybeSingle(),
 
         supabase
           .from("property_costs")
@@ -298,7 +320,21 @@ export default function PublicPropertyPage() {
         propertyData.agent_id
           ? supabase
               .from("agents")
-              .select("id,company,bio,image,phone,rating,verified")
+              .select(
+                `
+        id,
+        user_id,
+        company,
+        bio,
+        image,
+        phone,
+        rating,
+        verified,
+        earb_registration_number,
+        earb_registration_verified,
+        practicing_certificate_verified
+        `,
+              )
               .eq("id", propertyData.agent_id)
               .maybeSingle()
           : Promise.resolve({ data: null }),
@@ -317,6 +353,7 @@ export default function PublicPropertyPage() {
       const loadedImages = (imagesResult.data ?? []) as PropertyImage[];
 
       setImages(loadedImages);
+      setOwnerProfile((ownerResult.data ?? null) as OwnerProfile | null);
       setVirtualTours((virtualToursResult.data ?? []) as VirtualTour[]);
       setCosts((costsResult.data ?? null) as PropertyCost | null);
       setArea((areaResult.data ?? null) as AreaIntelligence | null);
@@ -391,7 +428,9 @@ export default function PublicPropertyPage() {
     }
 
     if (favoriteUserIds.length === 0) {
-      setFavoriteError("Your account profile could not be verified. Please try again.");
+      setFavoriteError(
+        "Your account profile could not be verified. Please try again.",
+      );
       return;
     }
 
@@ -450,15 +489,19 @@ export default function PublicPropertyPage() {
           property.slug ?? property.id,
         )}`,
       );
+
       return;
     }
 
-    const recipientId = property.owner_id || property.agent_id;
+    const recipientId = agent?.user_id ?? property.owner_id ?? null;
 
     if (!recipientId) {
-      router.push(
-        `/dashboard/messages?property=${encodeURIComponent(property.id)}`,
-      );
+      setFavoriteError("No property representative is currently available.");
+
+      return;
+    }
+
+    if (recipientId === currentUserId) {
       return;
     }
 
@@ -469,7 +512,6 @@ export default function PublicPropertyPage() {
 
     router.push(`/dashboard/messages?${params.toString()}`);
   }
-
   if (loading) {
     return (
       <>
@@ -1116,15 +1158,22 @@ export default function PublicPropertyPage() {
               <div className="property-card property-contact-card">
                 <h2>Interested in this property?</h2>
 
-                <p>Contact the listing owner or agent through KejaTrue.</p>
+                <p>
+                  Contact the listing owner or arrange for a physical visit.
+                </p>
 
                 <button
                   type="button"
                   className="property-primary-button property-full-button"
                   onClick={contactOwner}
                 >
-                  Contact listing owner
+                  {agent ? "Message agent" : "Message landlord"}
                 </button>
+
+                <PropertyVisitBooking
+                  propertyId={property.id}
+                  propertyTitle={property.title}
+                />
 
                 <button
                   type="button"
@@ -1135,44 +1184,99 @@ export default function PublicPropertyPage() {
                 </button>
               </div>
 
-              {agent && (
-                <div className="property-card property-agent-card">
-                  <div className="property-sidebar-kicker">
-                    Listing professional
-                  </div>
+              <div className="property-card property-contact-profile-card">
+                <div className="property-sidebar-kicker">LISTING CONTACT</div>
 
-                  <div className="property-agent-profile">
-                    {agent.image ? (
-                      <img
-                        src={agent.image}
-                        alt={agent.company || "Real estate agent"}
-                      />
-                    ) : (
-                      <div className="property-agent-avatar">
-                        {(agent.company || "A").charAt(0).toUpperCase()}
+                {agent ? (
+                  <>
+                    <div className="property-agent-profile">
+                      {agent.image ? (
+                        <img
+                          src={agent.image}
+                          alt={agent.company || "Real estate agent"}
+                        />
+                      ) : (
+                        <div className="property-agent-avatar">
+                          {(agent.company || "A").charAt(0).toUpperCase()}
+                        </div>
+                      )}
+
+                      <div>
+                        <strong>{agent.company || "Real estate agent"}</strong>
+
+                        {agent.verified && (
+                          <span className="verified-review-label">
+                            ✓ Verified agent
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {agent.rating !== null && (
+                      <div className="agent-rating">
+                        ★ {Number(agent.rating).toFixed(1)}
                       </div>
                     )}
 
-                    <div>
-                      <strong>{agent.company || "Real estate agent"}</strong>
+                    {agent.bio && <p>{agent.bio}</p>}
 
-                      {agent.verified && (
-                        <span className="verified-review-label">
-                          ✓ Verified professional
-                        </span>
+                    <button
+                      type="button"
+                      className="property-primary-button property-full-button"
+                      onClick={contactOwner}
+                    >
+                      Message agent
+                    </button>
+                  </>
+                ) : ownerProfile ? (
+                  <>
+                    <div className="property-agent-profile">
+                      {ownerProfile.avatar ? (
+                        <img
+                          src={ownerProfile.avatar}
+                          alt={ownerProfile.full_name || "Landlord"}
+                        />
+                      ) : (
+                        <div className="property-agent-avatar">
+                          {(ownerProfile.full_name || "L")
+                            .charAt(0)
+                            .toUpperCase()}
+                        </div>
                       )}
-                    </div>
-                  </div>
 
-                  {agent.bio && <p>{agent.bio}</p>}
+                      <div>
+                        <strong>
+                          {ownerProfile.full_name || "Property landlord"}
+                        </strong>
 
-                  {agent.rating !== null && (
-                    <div className="agent-rating">
-                      ★ {Number(agent.rating).toFixed(1)}
+                        <span className="verified-review-label">
+                          {ownerProfile.role === "landlord"
+                            ? "Landlord"
+                            : "Property owner"}
+                        </span>
+                      </div>
                     </div>
-                  )}
-                </div>
-              )}
+
+                    {ownerProfile.phone && (
+                      <p>
+                        <strong>Phone</strong>
+                        <br />
+                        {ownerProfile.phone}
+                      </p>
+                    )}
+
+                    <button
+                      type="button"
+                      className="property-primary-button property-full-button"
+                      onClick={contactOwner}
+                    >
+                      Message landlord
+                    </button>
+                  </>
+                ) : (
+                  <p>Listing contact information is unavailable.</p>
+                )}
+              </div>
             </aside>
           </section>
 

@@ -68,6 +68,18 @@ export default function MessagesPage() {
   const [property, setProperty] = useState<PropertyForMessage | null>(null);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
+  const [userProfiles, setUserProfiles] = useState<
+    Record<
+      string,
+      {
+        id: string;
+        full_name: string | null;
+        email: string | null;
+        role: string | null;
+        avatar: string | null;
+      }
+    >
+  >({});
 
   useEffect(() => {
     let cancelled = false;
@@ -119,6 +131,38 @@ export default function MessagesPage() {
 
       if (messagesError) {
         setError(`Could not load messages: ${messagesError.message}`);
+      }
+
+      const participantIds = Array.from(
+        new Set(
+          (rows ?? []).flatMap((row) => [row.sender_id, row.receiver_id]),
+        ),
+      );
+
+      if (participantIds.length > 0) {
+        const { data: profiles } = await supabase
+          .from("users")
+          .select("id,full_name,email,role,avatar")
+          .in("id", participantIds);
+
+        const profileMap: Record<
+          string,
+          {
+            id: string;
+            full_name: string | null;
+            email: string | null;
+            role: string | null;
+            avatar: string | null;
+          }
+        > = {};
+
+        for (const profile of profiles ?? []) {
+          profileMap[profile.id] = profile;
+        }
+
+        if (!cancelled) {
+          setUserProfiles(profileMap);
+        }
       }
 
       const conversationsMap = new Map<string, Conversation>();
@@ -189,6 +233,9 @@ export default function MessagesPage() {
   const activeMessages = selectedConversation?.messages ?? [];
   const activeRecipientId =
     selectedConversation?.otherUserId ?? requestedTo ?? null;
+  const activeProfile = activeRecipientId
+    ? userProfiles[activeRecipientId]
+    : null;
 
   const fallbackRecipientId =
     property && property.owner_id === currentUserId
@@ -198,12 +245,11 @@ export default function MessagesPage() {
   const canStartNewConversation =
     !selectedConversation && Boolean(requestedTo || fallbackRecipientId);
 
-  const conversationTitle =
-    selectedConversation && selectedConversation.propertyId
-      ? (property?.title ?? "Property conversation")
-      : selectedConversation
-        ? `Chat with ${selectedConversation.otherUserId.slice(0, 8)}`
-        : "No conversation selected";
+  const conversationTitle = selectedConversation
+    ? activeProfile?.full_name ||
+      activeProfile?.email ||
+      "Property representative"
+    : "No conversation selected";
 
   const headerTitle = selectedConversation
     ? conversationTitle
@@ -225,6 +271,36 @@ export default function MessagesPage() {
     if (messagesError) {
       setError(`Could not refresh messages: ${messagesError.message}`);
       return;
+    }
+
+    const participantIds = Array.from(
+      new Set(
+        (rows ?? []).flatMap((row) => [row.sender_id, row.receiver_id]),
+      ),
+    );
+
+    if (participantIds.length > 0) {
+      const { data: profiles } = await supabase
+        .from("users")
+        .select("id,full_name,email,role,avatar")
+        .in("id", participantIds);
+
+      const profileMap: Record<
+        string,
+        {
+          id: string;
+          full_name: string | null;
+          email: string | null;
+          role: string | null;
+          avatar: string | null;
+        }
+      > = {};
+
+      for (const profile of profiles ?? []) {
+        profileMap[profile.id] = profile;
+      }
+
+      setUserProfiles(profileMap);
     }
 
     const map = new Map<string, Conversation>();
@@ -500,10 +576,11 @@ export default function MessagesPage() {
                   const lastMessage =
                     conversation.messages[conversation.messages.length - 1];
                   const isSelected = conversation.key === selectedKey;
+                  const otherProfile = userProfiles[conversation.otherUserId];
                   const conversationName =
-                    conversation.otherUserId === currentUserId
-                      ? "You"
-                      : conversation.otherUserId.slice(0, 8);
+                    otherProfile?.full_name ||
+                    otherProfile?.email ||
+                    "KejaTrue user";
 
                   return (
                     <button

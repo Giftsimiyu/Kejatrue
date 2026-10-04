@@ -22,9 +22,12 @@ export default function PropertyCard({
   isSaving = false,
 }: PropertyCardProps) {
   const router = useRouter();
+  const propertyHref = `/property/${encodeURIComponent(
+    property.slug || property.id,
+  )}`;
 
   const handleCardClick = () => {
-    router.push(`/property/${property.slug || property.id}`);
+    router.push(propertyHref);
   };
 
   const handleSaveClick = (event: React.MouseEvent<HTMLButtonElement>) => {
@@ -98,7 +101,7 @@ export default function PropertyCard({
           </span>
           <Link
             className="card-link"
-            href={`/property/${property.slug || property.id}`}
+            href={propertyHref}
           >
             View intelligence <span>↗</span>
           </Link>

@@ -188,15 +188,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (property.owner_id !== user.id && property.owner_id !== profile?.id) {
-      return NextResponse.json(
-        {
-          error:
-            "You do not have permission to create a redesign for this property.",
-        },
-        { status: 403 }
-      );
-    }
+    // AI virtual staging is a house-hunter feature.
+// Any authenticated user may visualize a public property.
+// The property is still checked to ensure it exists.
 
     /*
      * ---------------------------------------------------------

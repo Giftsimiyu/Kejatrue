@@ -9,18 +9,16 @@ export async function getFavoriteUserIds(
   const { data: profile, error } = await supabase
     .from("users")
     .select("id")
-    .eq("auth_user_id", authUserId)
+    .eq("id", authUserId)
     .maybeSingle();
 
-  if (error) {
-    throw error;
-  }
+  if (error) throw error;
 
   if (!profile) {
     throw new Error("Your account profile could not be found.");
   }
 
-  return [...new Set([authUserId, profile.id])];
+  return [authUserId];
 }
 
 export async function insertFavorite(
@@ -28,20 +26,24 @@ export async function insertFavorite(
   userIds: string[],
   propertyId: string,
 ) {
-  let lastError: Error | null = null;
+  const userId = userIds[0];
 
-  for (const userId of userIds) {
-    const { error } = await supabase.from("favorites").insert({
-      user_id: userId,
-      property_id: propertyId,
-    });
-
-    if (!error) {
-      return;
-    }
-
-    lastError = error;
+  if (!userId) {
+    throw new Error("No authenticated user was found.");
   }
 
-  throw lastError ?? new Error("Unable to save this property.");
+  const { error } = await supabase
+    .from("favorites")
+    .upsert(
+      {
+        user_id: userId,
+        property_id: propertyId,
+      },
+      {
+        onConflict: "user_id,property_id",
+        ignoreDuplicates: true,
+      },
+    );
+
+  if (error) throw error;
 }

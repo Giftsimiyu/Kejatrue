@@ -49,7 +49,7 @@ export default function FavoritesPage() {
         const { data: savedProperties, error: favoritesError } = await supabase
           .from("favorites")
           .select("property_id")
-          .in("user_id", favoriteIds);
+          .eq("user_id", user.id);
 
         if (favoritesError) {
           throw favoritesError;
@@ -117,7 +117,7 @@ export default function FavoritesPage() {
     const { error } = await createClient()
       .from("favorites")
       .delete()
-      .in("user_id", favoriteUserIds)
+      .eq("user_id", favoriteUserIds[0])
       .eq("property_id", propertyId);
 
     if (error) {
