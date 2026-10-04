@@ -6,6 +6,7 @@ import { getCurrentUserProfile, toRoleId } from "../../lib/auth";
 import { type RoleId, workspaceNavigation } from "../../lib/roles";
 
 import { SiteFooter, SiteNavbar } from "../../components/site-chrome";
+import DashboardAccountActions from "../../components/dashboard-account-actions";
 
 type DashboardProperty = {
   id: string;
@@ -237,7 +238,7 @@ export default async function DashboardPage() {
 
           <span>{profile?.full_name || user.email}</span>
 
-          <Link href="/dashboard/profile">Profile</Link>
+          <DashboardAccountActions />
         </div>
       </SiteNavbar>
 

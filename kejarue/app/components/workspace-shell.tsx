@@ -7,6 +7,7 @@ import {
   workspaceNavigation,
   type RoleId,
 } from "../lib/roles";
+import DashboardAccountActions from "./dashboard-account-actions";
 
 type WorkspaceShellProps = {
   role: RoleId;
@@ -27,9 +28,7 @@ export function WorkspaceShell({
     <main className="dashboard-page">
       <SiteNavbar backHref="/dashboard">
         <div className="dashboard-user">
-          <span className="avatar small">GS</span>
-          <span>Gift Mumbi Simiyu</span>
-          <Link href="/auth">Sign out</Link>
+          <DashboardAccountActions />
         </div>
       </SiteNavbar>
       <section className="workspace-section-content">

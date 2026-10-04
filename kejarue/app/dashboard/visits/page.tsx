@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "../../backend/supabase/client";
+import { SiteNavbar } from "../../components/site-chrome";
+import DashboardAccountActions from "../../components/dashboard-account-actions";
 
 type VisitRequest = {
   id: string;
@@ -256,6 +258,9 @@ export default function VisitRequestsPage() {
 
   return (
     <main className="dashboard-page">
+      <SiteNavbar>
+        <DashboardAccountActions />
+      </SiteNavbar>
       <section className="dashboard-content">
         <div className="dashboard-heading">
           <div>

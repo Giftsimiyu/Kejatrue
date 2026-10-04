@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { createClient } from "../../../backend/supabase/client";
 import { SiteFooter, SiteNavbar } from "../../../components/site-chrome";
+import DashboardAccountActions from "../../../components/dashboard-account-actions";
 import VirtualTourManager from "../../../components/virtual-tour-manager";
 import VisitAvailabilityManager from "../../../components/visit-availability-manager";
 
@@ -346,6 +347,36 @@ export default function PropertyManagementPage() {
       ...current,
       [key]: value,
     }));
+  }
+
+  async function confirmListing() {
+    setSaving(true);
+    setErrorMessage("");
+    setMessage("");
+
+    try {
+      const { error } = await supabase.rpc("confirm_property_listing", {
+        p_property_id: propertyId,
+      });
+
+      if (error) {
+        setErrorMessage(error.message);
+        return;
+      }
+
+      setMessage(
+        "Listing confirmed. It will remain visible to house hunters for the next 30 days.",
+      );
+    } catch (error) {
+      console.error("Failed to confirm property listing.", error);
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : "We could not confirm this listing. Please try again.",
+      );
+    } finally {
+      setSaving(false);
+    }
   }
 
   async function persistProperty(nextStatus: "draft" | "pending") {
@@ -697,7 +728,9 @@ export default function PropertyManagementPage() {
   if (loading) {
     return (
       <div className="site-shell dashboard-management-page">
-        <SiteNavbar />
+        <SiteNavbar>
+          <DashboardAccountActions />
+        </SiteNavbar>
 
         <main className="dashboard-management-main">
           <div className="management-loading">Loading property workspace…</div>
@@ -711,7 +744,9 @@ export default function PropertyManagementPage() {
   if (!property) {
     return (
       <div className="site-shell dashboard-management-page">
-        <SiteNavbar />
+        <SiteNavbar>
+          <DashboardAccountActions />
+        </SiteNavbar>
 
         <main className="dashboard-management-main">
           <div className="management-error-panel">
@@ -734,7 +769,9 @@ export default function PropertyManagementPage() {
 
   return (
     <div className="site-shell dashboard-management-page">
-      <SiteNavbar />
+      <SiteNavbar>
+        <DashboardAccountActions />
+      </SiteNavbar>
 
       <main className="dashboard-management-main">
         <div className="management-breadcrumb">
@@ -788,6 +825,30 @@ export default function PropertyManagementPage() {
             {errorMessage || message}
           </div>
         )}
+
+        <section className="management-card" style={{ marginTop: 28 }}>
+          <div className="management-card-heading">
+            <div>
+              <span className="eyebrow">Listing availability</span>
+
+              <h2>Still available?</h2>
+
+              <p className="management-muted">
+                Confirm this listing to keep it visible to house hunters for
+                another 30 days.
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={confirmListing}
+              disabled={saving}
+              className="primary-button"
+            >
+              {saving ? "Confirming..." : "Confirm listing is still available"}
+            </button>
+          </div>
+        </section>
 
         <section className="management-intelligence">
           <div className="management-intelligence-heading">

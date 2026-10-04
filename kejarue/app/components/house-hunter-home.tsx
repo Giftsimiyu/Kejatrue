@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { BrandLink, SiteFooter } from "./site-chrome";
+import DashboardAccountActions from "./dashboard-account-actions";
 
 type HouseHunterHomeProps = {
   userEmail?: string;
@@ -63,6 +64,9 @@ export default function HouseHunterHome({ userEmail }: HouseHunterHomeProps) {
           <Link href="/dashboard/messages">
             <span>◷</span> Messages
           </Link>
+          <Link href="/dashboard/profile">
+            <span>◉</span> Profile
+          </Link>
         </nav>
         <div className="house-hunter-sidebar-note">
           <span className="eyebrow">Before you commit</span>
@@ -89,6 +93,7 @@ export default function HouseHunterHome({ userEmail }: HouseHunterHomeProps) {
           <div className="house-hunter-account">
             <span>{userEmail || "Your account"}</span>
             <span className="avatar small">{initials}</span>
+            <DashboardAccountActions />
           </div>
         </header>
 

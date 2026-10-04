@@ -2,6 +2,7 @@ import Link from "next/link";
 import { getCurrentUserProfile, toRoleId } from "../lib/auth";
 import { roles, type RoleId, workspaceNavigation } from "../lib/roles";
 import { SiteFooter, SiteNavbar } from "../components/site-chrome";
+import DashboardAccountActions from "../components/dashboard-account-actions";
 
 const dashboardCopy: Record<
   RoleId,
@@ -175,7 +176,7 @@ export default async function DashboardPage() {
 
           <span>{profile?.full_name || user.email}</span>
 
-          <Link href="/auth">Account</Link>
+          <DashboardAccountActions />
         </div>
       </SiteNavbar>
 

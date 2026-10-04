@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { createClient } from "../../../backend/supabase/client";
 import { SiteFooter, SiteNavbar } from "../../../components/site-chrome";
+import DashboardAccountActions from "../../../components/dashboard-account-actions";
 
 type DraftProperty = {
   id: string;
@@ -85,7 +86,9 @@ export default function DraftPropertiesPage() {
 
   return (
     <div className="site-shell dashboard-properties-page">
-      <SiteNavbar />
+      <SiteNavbar>
+        <DashboardAccountActions />
+      </SiteNavbar>
 
       <main className="dashboard-properties-main">
         <section className="dashboard-page-heading">

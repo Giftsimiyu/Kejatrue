@@ -8,6 +8,7 @@ import { getFavoriteUserIds, insertFavorite } from "../lib/favorite-user";
 import { mapProperty, type Property } from "../lib/properties";
 import { BrandLink, SiteFooter } from "./site-chrome";
 import PropertyCard from "./property-card";
+import DashboardAccountActions from "./dashboard-account-actions";
 
 export default function PropertyDiscovery() {
   const router = useRouter();
@@ -18,6 +19,7 @@ export default function PropertyDiscovery() {
   const [favoriteUserIds, setFavoriteUserIds] = useState<string[]>([]);
   const [savingPropertyIds, setSavingPropertyIds] = useState<string[]>([]);
   const [favoriteError, setFavoriteError] = useState("");
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
@@ -68,6 +70,7 @@ export default function PropertyDiscovery() {
 
         if (!isMounted || !user) return;
 
+        setIsAuthenticated(true);
         const favoriteIds = await getFavoriteUserIds(supabase, user.id);
         if (!isMounted) return;
         setFavoriteUserIds(favoriteIds);
@@ -179,6 +182,9 @@ export default function PropertyDiscovery() {
           <Link className="nav-item" href="/dashboard/messages">
             <span>◷</span> Messages
           </Link>
+          <Link className="nav-item" href="/dashboard/profile">
+            <span>◉</span> Profile
+          </Link>
         </nav>
         <div className="sidebar-note">
           <span className="eyebrow">Before you commit</span>
@@ -198,9 +204,7 @@ export default function PropertyDiscovery() {
             <i>/</i> Property listings
           </div>
           <div className="top-actions">
-            <a href="/auth" className="text-button">
-              Sign in <span>↗</span>
-            </a>
+            <DashboardAccountActions isAuthenticated={isAuthenticated} />
           </div>
         </header>
         <div className="content">

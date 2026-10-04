@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "../../../backend/supabase/client";
 import { SiteFooter, SiteNavbar } from "../../../components/site-chrome";
+import DashboardAccountActions from "../../../components/dashboard-account-actions";
 
 type Property = {
   id: string;
@@ -273,7 +274,9 @@ export default function PropertiesPage() {
 
   return (
     <div className="site-shell dashboard-properties-page">
-      <SiteNavbar />
+      <SiteNavbar>
+        <DashboardAccountActions />
+      </SiteNavbar>
 
       <main className="dashboard-properties-main">
         <section className="dashboard-page-heading">

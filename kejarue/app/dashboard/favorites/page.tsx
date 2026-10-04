@@ -8,6 +8,7 @@ import { getFavoriteUserIds } from "../../lib/favorite-user";
 import { mapProperty, type Property } from "../../lib/properties";
 import { BrandLink, SiteFooter } from "../../components/site-chrome";
 import PropertyCard from "../../components/property-card";
+import DashboardAccountActions from "../../components/dashboard-account-actions";
 
 export default function FavoritesPage() {
   const router = useRouter();
@@ -153,6 +154,9 @@ export default function FavoritesPage() {
           <Link className="nav-item" href="/dashboard/messages">
             <span>◷</span> Messages
           </Link>
+          <Link className="nav-item" href="/dashboard/profile">
+            <span>◉</span> Profile
+          </Link>
         </nav>
         <div className="sidebar-note">
           <span className="eyebrow">Before you commit</span>
@@ -173,6 +177,7 @@ export default function FavoritesPage() {
             <Link href="/listings" className="text-button">
               Find a home <span>↗</span>
             </Link>
+            <DashboardAccountActions />
           </div>
         </header>
 

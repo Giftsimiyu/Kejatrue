@@ -153,6 +153,8 @@ export default function AuthPage() {
      * SIGN UP
      */
 
+    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || window.location.origin;
+
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
@@ -161,11 +163,24 @@ export default function AuthPage() {
         data: {
           role,
         },
+
+        emailRedirectTo: `${siteUrl}/auth/confirm?next=/dashboard/profile?setup=1`,
       },
     });
 
     if (error) {
-      setMessage(error.message);
+      const lowerMessage = error.message.toLowerCase();
+
+      if (
+        lowerMessage.includes("email") &&
+        (lowerMessage.includes("confirm") || lowerMessage.includes("verify"))
+      ) {
+        setMessage(
+          "Please verify your email address before signing in. Check your inbox for the KejaTrue verification link.",
+        );
+      } else {
+        setMessage(error.message);
+      }
 
       setIsSubmitting(false);
 

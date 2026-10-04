@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "../../backend/supabase/client";
+import DashboardAccountActions from "../../components/dashboard-account-actions";
 
 type MessageRow = {
   id: string;
@@ -476,6 +477,7 @@ export default function MessagesPage() {
           >
             ← Back to dashboard
           </Link>
+          <DashboardAccountActions />
         </div>
 
         {error && (

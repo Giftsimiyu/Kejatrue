@@ -41,19 +41,42 @@ const intelligenceFeatures = [
     number: "02",
     title: "Property trust",
     description:
-      "Verification information helps people understand what has been checked and what still needs confirmation.",
+      "Understand what has been verified, what remains unverified and why the property received its trust score.",
   },
   {
     number: "03",
     title: "Area intelligence",
     description:
-      "Water, network, security, roads, lighting, flood risk and other area factors belong beside the property.",
+      "Water, network, security, roads, lighting, flood risk and noise belong beside the property.",
   },
   {
     number: "04",
     title: "Lived experience",
     description:
-      "Reviews and property reports help house hunters understand what a listing alone cannot tell them.",
+      "Reviews and reports help house hunters understand what a listing alone cannot tell them.",
+  },
+];
+
+const steps = [
+  {
+    number: "01",
+    title: "Discover",
+    text: "Search homes by location, budget, property type and the things that matter to you.",
+  },
+  {
+    number: "02",
+    title: "Understand",
+    text: "Look beyond rent. See recurring costs, verification, utilities and area intelligence.",
+  },
+  {
+    number: "03",
+    title: "Compare",
+    text: "Put properties side by side using information that actually affects your decision.",
+  },
+  {
+    number: "04",
+    title: "Visit",
+    text: "Request a viewing and connect with the agent or landlord when you're ready.",
   },
 ];
 
@@ -64,34 +87,24 @@ export default async function Home() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  /*
-   * A signed-in house hunter gets their personal
-   * workspace instead of the public landing page.
-   *
-   * Agents and landlords continue to use the
-   * professional dashboard.
-   */
   if (user?.user_metadata?.role === "house-hunter") {
     return <HouseHunterHome userEmail={user.email} />;
   }
 
   return (
     <main className="landing-page">
-      {/* =========================================
+      {/* =====================================================
           NAVIGATION
-      ========================================== */}
+      ====================================================== */}
 
       <header className="landing-nav">
         <BrandLink />
 
         <nav aria-label="Main navigation">
           <Link href="/listings">Find a home</Link>
-
           <Link href="#how-it-works">How it works</Link>
-
-          <Link href="#for-everyone">For professionals</Link>
-
-          <Link href="/about">About</Link>
+          <Link href="#intelligence">Intelligence</Link>
+          <Link href="#professionals">For professionals</Link>
         </nav>
 
         <div className="landing-actions">
@@ -105,11 +118,11 @@ export default async function Home() {
         </div>
       </header>
 
-      {/* =========================================
+      {/* =====================================================
           HERO
-      ========================================== */}
+      ====================================================== */}
 
-      <section className="landing-hero">
+      <section className="landing-hero landing-hero-new">
         <div className="landing-hero-copy">
           <span className="eyebrow">Property intelligence for Kenya</span>
 
@@ -129,171 +142,124 @@ export default async function Home() {
             </Link>
 
             <Link href="#how-it-works" className="text-button">
-              See how KejaTrue works <span>↓</span>
+              See how it works <span>↓</span>
             </Link>
           </div>
 
-          <div className="landing-hero-note">
-            <span className="landing-note-mark">K</span>
-
-            <div>
-              <span className="eyebrow">The KejaTrue principle</span>
-
-              <h2>Good listings answer questions before they are asked.</h2>
-
-              <p>
-                We believe choosing a home should involve more than a rent price
-                and a few photos.
-              </p>
-            </div>
+          <div className="landing-trust-line">
+            <span>✓ Real monthly costs</span>
+            <span>✓ Verification signals</span>
+            <span>✓ Area intelligence</span>
           </div>
         </div>
 
-        {/* =====================================
-            HERO VISUAL
-        ====================================== */}
+        <div className="landing-hero-visual landing-hero-visual-new">
+          <div className="landing-photo-frame">
+            <img
+              src="https://images.unsplash.com/photo-1600607687920-4e2a09cf159d?auto=format&fit=crop&w=1400&q=85"
+              alt="Modern apartment interior"
+            />
 
-        <div className="landing-hero-visual">
-          <div className="landing-property-window">
-            <div className="landing-property-image">
-              <span>KEJATRUE</span>
+            <div className="landing-photo-overlay">
+              <span className="eyebrow">Featured example</span>
+
+              <h3>The Olive House</h3>
+
+              <p>Kilimani · Nairobi</p>
             </div>
 
-            <div className="landing-property-info">
-              <div>
-                <span className="eyebrow">Example property</span>
-
-                <h3>The Olive House</h3>
-
-                <p>Kilimani · Nairobi</p>
-              </div>
-
-              <strong>
-                KSh 68,000
-                <small>/ month</small>
-              </strong>
-            </div>
-
-            <div className="landing-property-signals">
-              <span>✓ Verified</span>
-
-              <span>Water 86</span>
-
-              <span>Network 91</span>
-
-              <span>Trust 88</span>
+            <div className="landing-photo-badge">
+              <span>✓</span>
+              Verified signals
             </div>
           </div>
 
-          <div className="landing-floating-card">
+          <div className="landing-floating-card landing-floating-card-new">
             <span className="eyebrow">True monthly cost</span>
 
             <strong>KSh 76,500</strong>
 
-            <small>Rent + recurring property costs</small>
+            <div className="landing-cost-breakdown">
+              <span>Rent</span>
+              <b>KSh 68,000</b>
+
+              <span>Recurring costs</span>
+              <b>KSh 8,500</b>
+            </div>
+
+            <small>The number that matters before you commit.</small>
+          </div>
+
+          <div className="landing-score-card">
+            <span className="eyebrow">Trust score</span>
+
+            <strong>88</strong>
+
+            <small>Strong verification signals</small>
           </div>
         </div>
       </section>
 
-      {/* =========================================
-          HOW IT WORKS
-      ========================================== */}
+      {/* =====================================================
+          SEARCH CTA
+      ====================================================== */}
 
-      <section className="landing-how" id="how-it-works">
+      <section className="landing-search-section">
+        <div>
+          <span className="eyebrow">Start your search</span>
+
+          <h2>What kind of home are you looking for?</h2>
+        </div>
+
+        <Link href="/listings" className="landing-search-button">
+          <span>⌕</span>
+          Search homes by location, budget or property type
+          <b>↗</b>
+        </Link>
+      </section>
+
+      {/* =====================================================
+          HOW IT WORKS
+      ====================================================== */}
+
+      <section className="landing-how landing-section-new" id="how-it-works">
         <div className="landing-section-intro">
           <span className="eyebrow">How KejaTrue works</span>
 
           <h2>
-            One property.
-            <br />
-            More of the information that matters.
+            House hunting should feel like
+            <em> research,</em> not guesswork.
           </h2>
         </div>
 
         <div className="landing-process">
-          <article>
-            <span>01</span>
+          {steps.map((step) => (
+            <article key={step.number}>
+              <span>{step.number}</span>
 
-            <h3>Discover</h3>
+              <h3>{step.title}</h3>
 
-            <p>
-              Browse properties and search by location, budget, property type
-              and other requirements.
-            </p>
-          </article>
-
-          <article>
-            <span>02</span>
-
-            <h3>Understand</h3>
-
-            <p>
-              Look beyond the advertised rent. See recurring costs, utilities,
-              verification and area information.
-            </p>
-          </article>
-
-          <article>
-            <span>03</span>
-
-            <h3>Compare</h3>
-
-            <p>
-              Compare properties using the information that actually affects
-              your decision.
-            </p>
-          </article>
-
-          <article>
-            <span>04</span>
-
-            <h3>Connect</h3>
-
-            <p>
-              Request a viewing or contact the agent or landlord when
-              you&apos;re ready.
-            </p>
-          </article>
-        </div>
-      </section>
-
-      {/* =========================================
-          THREE USERS
-      ========================================== */}
-
-      <section className="landing-audiences" id="for-everyone">
-        <div className="landing-section-intro">
-          <span className="eyebrow">One platform, three perspectives</span>
-
-          <h2>KejaTrue works differently depending on what you need to do.</h2>
-        </div>
-
-        <div className="audience-grid">
-          {audiences.map((audience) => (
-            <article className="audience-card" key={audience.role}>
-              <span className="eyebrow">{audience.role}</span>
-
-              <h3>{audience.title}</h3>
-
-              <p>{audience.description}</p>
-
-              <Link href={audience.href} className="text-button">
-                {audience.action} <span>↗</span>
-              </Link>
+              <p>{step.text}</p>
             </article>
           ))}
         </div>
       </section>
 
-      {/* =========================================
+      {/* =====================================================
           INTELLIGENCE
-      ========================================== */}
+      ====================================================== */}
 
-      <section className="landing-features">
-        <div>
+      <section
+        className="landing-features landing-section-new"
+        id="intelligence"
+      >
+        <div className="landing-features-heading">
           <span className="eyebrow">Property intelligence</span>
 
-          <h2>The details that can change a decision.</h2>
+          <h2>
+            The details that can change
+            <em> a decision.</em>
+          </h2>
 
           <p className="landing-feature-intro">
             KejaTrue is designed to bring the information people normally have
@@ -316,45 +282,58 @@ export default async function Home() {
         </div>
       </section>
 
-      {/* =========================================
-          PROFESSIONAL CTA
-      ========================================== */}
+      {/* =====================================================
+          THREE USERS
+      ====================================================== */}
 
-      <section className="landing-professional">
-        <div>
-          <span className="eyebrow">For agents & landlords</span>
+      <section
+        className="landing-audiences landing-section-new"
+        id="professionals"
+      >
+        <div className="landing-section-intro">
+          <span className="eyebrow">One platform, three perspectives</span>
 
-          <h2>Your listing should tell the whole story.</h2>
-
-          <p>
-            Add properties, provide accurate costs and information, respond to
-            enquiries and build a stronger relationship with prospective
-            tenants.
-          </p>
+          <h2>
+            Built around the people who actually
+            <em> use property information.</em>
+          </h2>
         </div>
 
-        <div className="landing-professional-actions">
-          <Link href="/auth?role=agent" className="dark-button">
-            Join as an agent <span>↗</span>
-          </Link>
+        <div className="audience-grid">
+          {audiences.map((audience) => (
+            <article className="audience-card" key={audience.role}>
+              <span className="eyebrow">{audience.role}</span>
 
-          <Link href="/auth?role=landlord" className="text-button">
-            Join as a landlord <span>↗</span>
-          </Link>
+              <h3>{audience.title}</h3>
+
+              <p>{audience.description}</p>
+
+              <Link href={audience.href} className="text-button">
+                {audience.action} <span>↗</span>
+              </Link>
+            </article>
+          ))}
         </div>
       </section>
 
-      {/* =========================================
+      {/* =====================================================
           FINAL CTA
-      ========================================== */}
+      ====================================================== */}
 
-      <section className="landing-cta">
-        <span className="eyebrow">Start with what matters</span>
+      <section className="landing-cta landing-cta-new">
+        <span className="eyebrow">
+          Your next move deserves better information
+        </span>
 
         <h2>
           Find a place you can
           <em> actually understand.</em>
         </h2>
+
+        <p>
+          Search properties, understand the real costs and make your next move
+          with more confidence.
+        </p>
 
         <Link href="/listings" className="dark-button">
           Explore homes <span>↗</span>
