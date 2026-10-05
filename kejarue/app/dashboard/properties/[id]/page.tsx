@@ -8,6 +8,9 @@ import { SiteFooter, SiteNavbar } from "../../../components/site-chrome";
 import DashboardAccountActions from "../../../components/dashboard-account-actions";
 import VirtualTourManager from "../../../components/virtual-tour-manager";
 import VisitAvailabilityManager from "../../../components/visit-availability-manager";
+import PropertyUnitManager, {
+  type PropertyUnit,
+} from "../../../components/property-unit-manager";
 
 type Property = {
   id: string;
@@ -130,6 +133,7 @@ export default function PropertyManagementPage() {
   const supabase = useMemo(() => createClient(), []);
 
   const [property, setProperty] = useState<Property | null>(null);
+  const [propertyUnits, setPropertyUnits] = useState<PropertyUnit[]>([]);
   const [cost, setCost] = useState<Cost>(emptyCost);
   const [verification, setVerification] =
     useState<Verification>(emptyVerification);
@@ -219,6 +223,53 @@ export default function PropertyManagementPage() {
 
         return;
       }
+
+      const {
+        data: propertyUnitsData,
+        error: propertyUnitsError,
+      } = await supabase
+        .from("property_units")
+        .select(`
+          id,
+          unit_label,
+          floor_label,
+          status,
+          rent_override,
+          bedrooms,
+          bathrooms,
+          area_sqft,
+          amenities,
+          notes
+        `)
+        .eq("property_id", propertyId)
+        .order("unit_label", {
+          ascending: true,
+        });
+
+      if (propertyUnitsError) {
+        console.error("Failed to load property units:", propertyUnitsError);
+      }
+
+      setPropertyUnits(
+        (propertyUnitsData ?? []).map((unit) => ({
+          id: unit.id,
+          unit_label: unit.unit_label ?? "",
+          floor_label: unit.floor_label ?? "",
+          status: (unit.status ?? "available") as PropertyUnit["status"],
+          rent_override:
+            unit.rent_override !== null ? String(unit.rent_override) : "",
+          bedrooms:
+            unit.bedrooms !== null ? String(unit.bedrooms) : "",
+          bathrooms:
+            unit.bathrooms !== null ? String(unit.bathrooms) : "",
+          area_sqft:
+            unit.area_sqft !== null ? String(unit.area_sqft) : "",
+          amenities: Array.isArray(unit.amenities)
+            ? unit.amenities.join(", ")
+            : "",
+          notes: unit.notes ?? "",
+        })),
+      );
 
       const [
         costResult,
@@ -1157,10 +1208,15 @@ export default function PropertyManagementPage() {
               </div>
             </form>
 
+            <PropertyUnitManager
+              propertyId={property.id}
+              initialUnits={propertyUnits}
+            />
+
             <form className="management-card" onSubmit={saveCosts}>
               <div className="management-card-heading">
                 <div>
-                  <span className="eyebrow">02 · Transparency</span>
+                  <span className="eyebrow">03 · True Monthly Cost</span>
 
                   <h2>True Monthly Cost</h2>
                 </div>
@@ -1304,7 +1360,7 @@ export default function PropertyManagementPage() {
             <form className="management-card" onSubmit={saveVerification}>
               <div className="management-card-heading">
                 <div>
-                  <span className="eyebrow">03 · Trust</span>
+                  <span className="eyebrow">04 · Verification evidence</span>
 
                   <h2>Verification evidence</h2>
                 </div>
@@ -1407,7 +1463,7 @@ export default function PropertyManagementPage() {
             <section className="management-card">
               <div className="management-card-heading">
                 <div>
-                  <span className="eyebrow">04 · Media</span>
+                  <span className="eyebrow">05 · Property images</span>
 
                   <h2>Property images</h2>
                 </div>

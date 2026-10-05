@@ -42,6 +42,16 @@ export default function PropertyCard({
     }
   };
 
+  const availableUnits =
+    property.property_units?.filter((unit) => unit.status === "available") ??
+    [];
+
+  const reservedUnits =
+    property.property_units?.filter((unit) => unit.status === "reserved") ?? [];
+
+  const hasUnitInventory =
+    property.property_units && property.property_units.length > 0;
+
   return (
     <article
       className="property-card"
@@ -97,15 +107,56 @@ export default function PropertyCard({
         </div>
         <div className="card-footer">
           <span>
-            {property.bedrooms} bedroom{property.bedrooms > 1 ? "s" : ""}
+            {hasUnitInventory
+              ? `${availableUnits.length} available unit${
+                  availableUnits.length === 1 ? "" : "s"
+                }`
+              : `${property.bedrooms} bedroom${
+                  property.bedrooms > 1 ? "s" : ""
+                }`}
           </span>
-          <Link
-            className="card-link"
-            href={propertyHref}
-          >
+
+          <Link className="card-link" href={propertyHref}>
             View intelligence <span>↗</span>
           </Link>
         </div>
+
+        {hasUnitInventory && (
+          <div className="mt-3 border-t border-black/10 pt-3">
+            <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-black/45">
+              Available units
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              {availableUnits.slice(0, 5).map((unit) => (
+                <span
+                  key={unit.id}
+                  className="rounded-full border border-black/10 px-3 py-1 text-xs font-medium"
+                >
+                  {unit.unit_label}
+
+                  {unit.rent_override
+                    ? ` · KSh ${new Intl.NumberFormat("en-KE").format(
+                        unit.rent_override,
+                      )}`
+                    : ""}
+                </span>
+              ))}
+
+              {availableUnits.length > 5 && (
+                <span className="rounded-full bg-black px-3 py-1 text-xs font-medium text-white">
+                  +{availableUnits.length - 5} more
+                </span>
+              )}
+            </div>
+
+            {reservedUnits.length > 0 && (
+              <p className="mt-2 text-xs text-black/45">
+                {reservedUnits.length} currently reserved
+              </p>
+            )}
+          </div>
+        )}
       </div>
     </article>
   );

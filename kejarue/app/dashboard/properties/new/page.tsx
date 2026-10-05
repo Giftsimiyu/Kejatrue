@@ -1,276 +1,486 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
+
 import { createClient } from "../../../backend/supabase/client";
 import { SiteFooter, SiteNavbar } from "../../../components/site-chrome";
 import DashboardAccountActions from "../../../components/dashboard-account-actions";
 
-type Property = {
-  id: string;
+type PropertyType =
+  | "Apartment"
+  | "Studio"
+  | "Bedsitter"
+  | "Maisonette"
+  | "Townhouse"
+  | "Standalone House"
+  | "Bungalow"
+  | "Villa"
+  | "Gated Estate"
+  | "Student Residence"
+  | "Commercial"
+  | "Office"
+  | "Shop"
+  | "Land"
+  | "Other";
+
+type PropertyForm = {
+  propertyType: PropertyType | "";
   title: string;
-  slug: string | null;
-  location: string | null;
-  city: string | null;
-  property_type: string | null;
-  listing_type: string | null;
-  price: number | null;
-  bedrooms: number | null;
-  bathrooms: number | null;
-  area_sqft: number | null;
-  thumbnail: string | null;
-  verification_status:
-    | "pending"
-    | "partially_verified"
-    | "verified"
-    | "rejected"
-    | null;
-  trust_score: number | null;
-  safety_score: number | null;
-  water_score: number | null;
-  network_score: number | null;
-  true_monthly_cost: number | null;
-  featured: boolean | null;
-  created_at: string;
-  updated_at: string;
+  description: string;
+
+  city: string;
+  location: string;
+  address: string;
+
+  price: string;
+  bedrooms: string;
+  bathrooms: string;
+  areaSqft: string;
+
+  listingType: "rent" | "sale";
+
+  amenities: string;
+  tags: string;
+
+  yearBuilt: string;
+
+  furnished: boolean;
+  parking: boolean;
+
+  waterAvailable: boolean;
+  electricityAvailable: boolean;
+
+  featured: boolean;
 };
 
-type FilterType = "all" | "verified" | "pending";
+const PROPERTY_TYPES: {
+  value: PropertyType;
+  description: string;
+}[] = [
+  {
+    value: "Apartment",
+    description: "Multi-unit residential building",
+  },
+  {
+    value: "Studio",
+    description: "Single-room self-contained unit",
+  },
+  {
+    value: "Bedsitter",
+    description: "Compact single-room residence",
+  },
+  {
+    value: "Maisonette",
+    description: "Multi-level family home",
+  },
+  {
+    value: "Townhouse",
+    description: "Attached or semi-attached residential home",
+  },
+  {
+    value: "Standalone House",
+    description: "Independent residential house",
+  },
+  {
+    value: "Bungalow",
+    description: "Single-storey residential house",
+  },
+  {
+    value: "Villa",
+    description: "Premium standalone residence",
+  },
+  {
+    value: "Gated Estate",
+    description: "Multiple homes within a managed estate",
+  },
+  {
+    value: "Student Residence",
+    description: "Accommodation designed for students",
+  },
+  {
+    value: "Commercial",
+    description: "Commercial property",
+  },
+  {
+    value: "Office",
+    description: "Office space",
+  },
+  {
+    value: "Shop",
+    description: "Retail or shop space",
+  },
+  {
+    value: "Land",
+    description: "Land or development plot",
+  },
+  {
+    value: "Other",
+    description: "Another property category",
+  },
+];
 
-function formatCurrency(value: number | null) {
-  if (value === null || value === undefined) {
-    return "Not set";
-  }
+const MULTI_UNIT_TYPES: PropertyType[] = [
+  "Apartment",
+  "Gated Estate",
+  "Townhouse",
+  "Student Residence",
+];
 
-  return `KSh ${new Intl.NumberFormat("en-KE").format(value)}`;
+const RESIDENTIAL_TYPES: PropertyType[] = [
+  "Apartment",
+  "Studio",
+  "Bedsitter",
+  "Maisonette",
+  "Townhouse",
+  "Standalone House",
+  "Bungalow",
+  "Villa",
+  "Gated Estate",
+  "Student Residence",
+];
+
+const DEFAULT_FORM: PropertyForm = {
+  propertyType: "",
+
+  title: "",
+  description: "",
+
+  city: "",
+  location: "",
+  address: "",
+
+  price: "",
+  bedrooms: "",
+  bathrooms: "",
+  areaSqft: "",
+
+  listingType: "rent",
+
+  amenities: "",
+  tags: "",
+
+  yearBuilt: "",
+
+  furnished: false,
+  parking: false,
+
+  waterAvailable: true,
+  electricityAvailable: true,
+
+  featured: false,
+};
+
+function slugify(value: string) {
+  return value
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
 }
 
-function formatNumber(value: number | null) {
-  if (value === null || value === undefined) {
-    return "—";
+function numberOrNull(value: string) {
+  if (!value.trim()) {
+    return null;
   }
 
-  return new Intl.NumberFormat("en-KE").format(value);
+  const number = Number(value);
+
+  return Number.isFinite(number) ? number : null;
 }
 
-function getVerificationLabel(status: Property["verification_status"]) {
-  switch (status) {
-    case "verified":
-      return "Verified";
-    case "partially_verified":
-      return "Partially verified";
-    case "rejected":
-      return "Rejected";
-    case "pending":
-    default:
-      return "Pending verification";
-  }
+function textArray(value: string) {
+  return value
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
 }
 
-function getVerificationClass(status: Property["verification_status"]) {
-  switch (status) {
-    case "verified":
-      return "property-status property-status--verified";
-
-    case "partially_verified":
-      return "property-status property-status--partial";
-
-    case "rejected":
-      return "property-status property-status--rejected";
-
-    case "pending":
-    default:
-      return "property-status property-status--pending";
-  }
+function isLand(type: PropertyType | "") {
+  return type === "Land";
 }
 
-function getScoreClass(score: number | null) {
-  if (score === null || score === undefined) {
-    return "score score--empty";
-  }
-
-  if (score >= 80) {
-    return "score score--high";
-  }
-
-  if (score >= 60) {
-    return "score score--medium";
-  }
-
-  return "score score--low";
+function isCommercial(type: PropertyType | "") {
+  return type === "Commercial" || type === "Office" || type === "Shop";
 }
 
-function getScoreLabel(score: number | null) {
-  if (score === null || score === undefined) {
-    return "—";
-  }
-
-  return `${Math.round(score)}`;
+function isResidential(type: PropertyType | "") {
+  return RESIDENTIAL_TYPES.includes(type as PropertyType);
 }
 
-export default function PropertiesPage() {
-  const supabase = createClient();
+function supportsUnits(type: PropertyType | "") {
+  return MULTI_UNIT_TYPES.includes(type as PropertyType);
+}
 
-  const [properties, setProperties] = useState<Property[]>([]);
-  const [search, setSearch] = useState("");
-  const [filter, setFilter] = useState<FilterType>("all");
-  const [loading, setLoading] = useState(true);
-  const [errorMessage, setErrorMessage] = useState("");
+export default function NewPropertyPage() {
+  const supabase = useMemo(() => createClient(), []);
 
-  useEffect(() => {
-    let mounted = true;
+  const [form, setForm] = useState<PropertyForm>(DEFAULT_FORM);
 
-    async function loadProperties() {
-      setLoading(true);
-      setErrorMessage("");
+  const [saving, setSaving] = useState(false);
 
+  const [error, setError] = useState("");
+
+  const [success, setSuccess] = useState("");
+
+  const [createdPropertyId, setCreatedPropertyId] = useState("");
+
+  const [createdPropertySlug, setCreatedPropertySlug] = useState("");
+
+  function updateForm<K extends keyof PropertyForm>(
+    field: K,
+    value: PropertyForm[K],
+  ) {
+    setForm((current) => ({
+      ...current,
+      [field]: value,
+    }));
+  }
+
+  const selectedType = form.propertyType;
+
+  const hasUnits = supportsUnits(selectedType);
+
+  const landListing = isLand(selectedType);
+
+  const commercialListing = isCommercial(selectedType);
+
+  const residentialListing = isResidential(selectedType);
+
+  async function createProperty() {
+    setError("");
+    setSuccess("");
+
+    if (!form.propertyType) {
+      setError("Choose the type of property you are listing.");
+      return;
+    }
+
+    if (!form.title.trim()) {
+      setError("Enter a property or development name.");
+      return;
+    }
+
+    if (!form.city.trim()) {
+      setError("Enter the city.");
+      return;
+    }
+
+    if (!form.location.trim()) {
+      setError("Enter the area or neighbourhood.");
+      return;
+    }
+
+    if (!form.price.trim()) {
+      setError("Enter the asking monthly rent.");
+      return;
+    }
+
+    setSaving(true);
+
+    try {
       const {
         data: { user },
         error: authError,
       } = await supabase.auth.getUser();
 
       if (authError || !user) {
-        if (mounted) {
-          setErrorMessage(
-            "Your session could not be verified. Please sign in again.",
-          );
-          setLoading(false);
-        }
-
-        return;
+        throw new Error("Your session has expired. Please sign in again.");
       }
 
       const { data: profile, error: profileError } = await supabase
         .from("users")
-        .select("role")
+        .select("id, role")
         .eq("id", user.id)
         .maybeSingle();
 
-      if (profileError) {
-        if (mounted) {
-          setErrorMessage("We could not load your account profile.");
-          setLoading(false);
-        }
-
-        return;
+      if (profileError || !profile) {
+        throw new Error("Your KejaTrue profile could not be found.");
       }
 
-      if (profile?.role !== "agent" && profile?.role !== "landlord") {
-        window.location.href = "/";
-        return;
+      if (profile.role !== "agent" && profile.role !== "landlord") {
+        throw new Error(
+          "Only landlords and agents can create property listings.",
+        );
       }
 
-      const { data, error } = await supabase
+      const baseSlug = slugify(`${form.title}-${form.city}-${form.location}`);
+
+      let slug = baseSlug || `property-${Date.now()}`;
+
+      /*
+       * Make the slug unique.
+       */
+      const { data: existingSlug } = await supabase
         .from("properties")
-        .select(
-          `
-            id,
-            title,
-            slug,
-            location,
-            city,
-            property_type,
-            listing_type,
-            price,
-            bedrooms,
-            bathrooms,
-            area_sqft,
-            thumbnail,
-            verification_status,
-            trust_score,
-            safety_score,
-            water_score,
-            network_score,
-            true_monthly_cost,
-            featured,
-            created_at,
-            updated_at
-          `,
-        )
-        .eq("owner_id", user.id)
-        .order("created_at", { ascending: false });
+        .select("id")
+        .eq("slug", slug)
+        .maybeSingle();
 
-      if (error) {
-        if (mounted) {
-          setErrorMessage(
-            error.message || "We could not load your properties.",
-          );
-          setLoading(false);
-        }
-
-        return;
+      if (existingSlug) {
+        slug = `${slug}-${Date.now().toString().slice(-6)}`;
       }
 
-      if (mounted) {
-        setProperties((data ?? []) as Property[]);
-        setLoading(false);
+      const propertyPayload = {
+        owner_id: user.id,
+
+        title: form.title.trim(),
+
+        slug,
+
+        description: form.description.trim() || null,
+
+        property_type: form.propertyType,
+
+        listing_type: form.listingType,
+
+        price: Number(form.price),
+
+        bedrooms:
+          landListing || commercialListing ? null : numberOrNull(form.bedrooms),
+
+        bathrooms:
+          landListing || commercialListing
+            ? null
+            : numberOrNull(form.bathrooms),
+
+        area_sqft: numberOrNull(form.areaSqft),
+
+        country: "Kenya",
+
+        city: form.city.trim(),
+
+        location: form.location.trim(),
+
+        address: form.address.trim() || null,
+
+        year_built: numberOrNull(form.yearBuilt),
+
+        amenities: textArray(form.amenities),
+
+        tags: textArray(form.tags),
+
+        featured: form.featured,
+
+        verification_status: "pending",
+
+        listing_status: "active",
+
+        last_confirmed_at: new Date().toISOString(),
+
+        stale_after_days: 30,
+      };
+
+      const { data: property, error: propertyError } = await supabase
+        .from("properties")
+        .insert(propertyPayload)
+        .select("id, slug")
+        .single();
+
+      if (propertyError) {
+        throw new Error(propertyError.message);
       }
+
+      if (!property) {
+        throw new Error(
+          "The property was created but no property ID was returned.",
+        );
+      }
+
+      /*
+       * Create the initial cost record.
+       *
+       * The base rent is already stored on properties.price.
+       * The recurring additional costs start at zero and can
+       * be completed from the property management page.
+       */
+      const { error: costError } = await supabase
+        .from("property_costs")
+        .insert({
+          property_id: property.id,
+
+          service_charge: 0,
+
+          garbage_fee: 0,
+
+          average_water_cost: 0,
+
+          average_electricity_cost: 0,
+
+          average_internet_cost: 0,
+
+          other_monthly_cost: 0,
+
+          notes: null,
+        });
+
+      if (costError) {
+        console.error("Property cost record could not be created:", costError);
+      }
+
+      /*
+       * Create the initial verification record.
+       */
+      const { error: verificationError } = await supabase
+        .from("property_verifications")
+        .insert({
+          property_id: property.id,
+
+          owner_identity_verified: false,
+
+          agent_verified: false,
+
+          location_verified: false,
+
+          documents_verified: false,
+
+          physical_inspection_verified: false,
+
+          photos_verified: false,
+
+          verification_notes: null,
+        });
+
+      if (verificationError) {
+        console.error(
+          "Verification record could not be created:",
+          verificationError,
+        );
+      }
+
+      setCreatedPropertyId(property.id);
+
+      setCreatedPropertySlug(property.slug);
+
+      setSuccess(
+        hasUnits
+          ? "Property created. Now add its individual units."
+          : "Property created successfully. Continue to complete its information.",
+      );
+    } catch (caughtError) {
+      console.error("Create property error:", caughtError);
+
+      setError(
+        caughtError instanceof Error
+          ? caughtError.message
+          : "We could not create the property.",
+      );
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  /*
+   * After the property is created, send the owner to the
+   * property management page.
+   */
+  function continueToProperty() {
+    if (!createdPropertyId) {
+      return;
     }
 
-    loadProperties();
-
-    return () => {
-      mounted = false;
-    };
-  }, [supabase]);
-
-  const filteredProperties = useMemo(() => {
-    const normalizedSearch = search.trim().toLowerCase();
-
-    return properties.filter((property) => {
-      const matchesSearch =
-        !normalizedSearch ||
-        property.title?.toLowerCase().includes(normalizedSearch) ||
-        property.location?.toLowerCase().includes(normalizedSearch) ||
-        property.city?.toLowerCase().includes(normalizedSearch) ||
-        property.property_type?.toLowerCase().includes(normalizedSearch);
-
-      let matchesFilter = true;
-
-      if (filter === "verified") {
-        matchesFilter = property.verification_status === "verified";
-      }
-
-      if (filter === "pending") {
-        matchesFilter =
-          property.verification_status === "pending" ||
-          property.verification_status === "partially_verified";
-      }
-
-      return matchesSearch && matchesFilter;
-    });
-  }, [properties, search, filter]);
-
-  const metrics = useMemo(() => {
-    const total = properties.length;
-
-    const verified = properties.filter(
-      (property) => property.verification_status === "verified",
-    ).length;
-
-    const pending = properties.filter(
-      (property) =>
-        property.verification_status === "pending" ||
-        property.verification_status === "partially_verified",
-    ).length;
-
-    const trustScores = properties
-      .map((property) => property.trust_score)
-      .filter((score): score is number => typeof score === "number");
-
-    const averageTrust =
-      trustScores.length > 0
-        ? trustScores.reduce((sum, score) => sum + score, 0) /
-          trustScores.length
-        : null;
-
-    return {
-      total,
-      verified,
-      pending,
-      averageTrust,
-    };
-  }, [properties]);
+    window.location.href = `/dashboard/properties/${createdPropertyId}`;
+  }
 
   return (
     <div className="site-shell dashboard-properties-page">
@@ -286,408 +496,628 @@ export default function PropertiesPage() {
 
               <span>/</span>
 
-              <span>Properties</span>
+              <Link href="/dashboard/properties">Properties</Link>
+
+              <span>/</span>
+
+              <span>Add property</span>
             </div>
 
-            <p className="dashboard-eyebrow">PROPERTY PORTFOLIO</p>
+            <p className="dashboard-eyebrow">PROPERTY LISTING</p>
 
-            <h1>Properties</h1>
+            <h1>Add a property</h1>
 
             <p className="dashboard-page-description">
-              Manage your listings, monitor their transparency data, and keep
-              your property information accurate.
-            </p>
-          </div>
-
-          <div className="dashboard-heading-actions">
-            <Link
-              href="/dashboard/properties/drafts"
-              className="dashboard-secondary-button"
-            >
-              Drafts
-            </Link>
-
-            <Link
-              href="/dashboard/properties/new"
-              className="dashboard-primary-button"
-            >
-              <span>+</span>
-              Add property
-            </Link>
-          </div>
-        </section>
-
-        <section className="property-metrics-grid">
-          <div className="property-metric-card">
-            <span className="property-metric-label">Total properties</span>
-
-            <strong>{loading ? "—" : metrics.total}</strong>
-
-            <span className="property-metric-note">In your portfolio</span>
-          </div>
-
-          <div className="property-metric-card">
-            <span className="property-metric-label">Verified</span>
-
-            <strong>{loading ? "—" : metrics.verified}</strong>
-
-            <span className="property-metric-note">Verification completed</span>
-          </div>
-
-          <div className="property-metric-card">
-            <span className="property-metric-label">In progress</span>
-
-            <strong>{loading ? "—" : metrics.pending}</strong>
-
-            <span className="property-metric-note">
-              Pending or partially verified
-            </span>
-          </div>
-
-          <div className="property-metric-card">
-            <span className="property-metric-label">Average trust</span>
-
-            <strong>
-              {loading
-                ? "—"
-                : metrics.averageTrust !== null
-                  ? `${Math.round(metrics.averageTrust)}`
-                  : "—"}
-            </strong>
-
-            <span className="property-metric-note">
-              Based on property verification data
-            </span>
-          </div>
-        </section>
-
-        <section className="property-toolbar">
-          <div className="property-search-wrapper">
-            <span className="property-search-icon">⌕</span>
-
-            <input
-              type="search"
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search properties..."
-              aria-label="Search properties"
-            />
-          </div>
-
-          <div className="property-filter-group">
-            <button
-              type="button"
-              className={
-                filter === "all"
-                  ? "property-filter-button property-filter-button--active"
-                  : "property-filter-button"
-              }
-              onClick={() => setFilter("all")}
-            >
-              All
-            </button>
-
-            <button
-              type="button"
-              className={
-                filter === "verified"
-                  ? "property-filter-button property-filter-button--active"
-                  : "property-filter-button"
-              }
-              onClick={() => setFilter("verified")}
-            >
-              Verified
-            </button>
-
-            <button
-              type="button"
-              className={
-                filter === "pending"
-                  ? "property-filter-button property-filter-button--active"
-                  : "property-filter-button"
-              }
-              onClick={() => setFilter("pending")}
-            >
-              In progress
-            </button>
-          </div>
-        </section>
-
-        {errorMessage ? (
-          <section className="dashboard-message-card dashboard-message-card--error">
-            <div className="dashboard-message-icon">!</div>
-
-            <div>
-              <h2>Could not load properties</h2>
-
-              <p>{errorMessage}</p>
-
-              <button
-                type="button"
-                onClick={() => window.location.reload()}
-                className="dashboard-secondary-button"
-              >
-                Try again
-              </button>
-            </div>
-          </section>
-        ) : loading ? (
-          <section className="property-loading-grid">
-            {[1, 2, 3].map((item) => (
-              <div className="property-skeleton-card" key={item}>
-                <div className="property-skeleton-image" />
-
-                <div className="property-skeleton-content">
-                  <div className="property-skeleton-line property-skeleton-line--long" />
-                  <div className="property-skeleton-line" />
-                  <div className="property-skeleton-line property-skeleton-line--short" />
-                </div>
-              </div>
-            ))}
-          </section>
-        ) : filteredProperties.length === 0 ? (
-          <section className="property-empty-state">
-            <div className="property-empty-icon">⌂</div>
-
-            {properties.length === 0 ? (
-              <>
-                <p className="dashboard-eyebrow">YOUR PORTFOLIO</p>
-
-                <h2>Your property portfolio starts here.</h2>
-
-                <p>
-                  Add your first property to begin publishing listings and
-                  building transparent property information for house hunters.
-                </p>
-
-                <Link
-                  href="/dashboard/properties/new"
-                  className="dashboard-primary-button"
-                >
-                  Add your first property
-                </Link>
-              </>
-            ) : (
-              <>
-                <p className="dashboard-eyebrow">NO MATCHES</p>
-
-                <h2>No properties match your search.</h2>
-
-                <p>
-                  Try a different property name, location, or verification
-                  filter.
-                </p>
-
-                <button
-                  type="button"
-                  className="dashboard-secondary-button"
-                  onClick={() => {
-                    setSearch("");
-                    setFilter("all");
-                  }}
-                >
-                  Clear filters
-                </button>
-              </>
-            )}
-          </section>
-        ) : (
-          <section className="property-list-section">
-            <div className="property-list-heading">
-              <div>
-                <p className="dashboard-eyebrow">LISTINGS</p>
-
-                <h2>
-                  {filteredProperties.length}{" "}
-                  {filteredProperties.length === 1 ? "property" : "properties"}
-                </h2>
-              </div>
-
-              <span className="property-list-count">
-                Updated from your portfolio
-              </span>
-            </div>
-
-            <div className="property-card-grid">
-              {filteredProperties.map((property) => (
-                <article className="property-management-card" key={property.id}>
-                  <div className="property-card-media">
-                    {property.thumbnail ? (
-                      <img src={property.thumbnail} alt={property.title} />
-                    ) : (
-                      <div className="property-card-placeholder">
-                        <span>⌂</span>
-                        <small>No property image</small>
-                      </div>
-                    )}
-
-                    <div className="property-card-media-top">
-                      <span
-                        className={getVerificationClass(
-                          property.verification_status,
-                        )}
-                      >
-                        {getVerificationLabel(property.verification_status)}
-                      </span>
-
-                      {property.featured ? (
-                        <span className="property-featured-badge">
-                          Featured
-                        </span>
-                      ) : null}
-                    </div>
-                  </div>
-
-                  <div className="property-card-body">
-                    <div className="property-card-title-row">
-                      <div>
-                        <h3>{property.title || "Untitled property"}</h3>
-
-                        <p>
-                          {property.location ||
-                            property.city ||
-                            "Location not provided"}
-                        </p>
-                      </div>
-
-                      <div className="property-trust-badge">
-                        <span>Trust</span>
-
-                        <strong>{getScoreLabel(property.trust_score)}</strong>
-                      </div>
-                    </div>
-
-                    <div className="property-price-row">
-                      <div>
-                        <strong>{formatCurrency(property.price)}</strong>
-
-                        <span>/ month</span>
-                      </div>
-
-                      <span className="property-type-label">
-                        {property.property_type || "Property"}
-                      </span>
-                    </div>
-
-                    <div className="property-details-row">
-                      <span>
-                        <strong>{formatNumber(property.bedrooms)}</strong> beds
-                      </span>
-
-                      <span>
-                        <strong>{formatNumber(property.bathrooms)}</strong>{" "}
-                        baths
-                      </span>
-
-                      <span>
-                        <strong>{formatNumber(property.area_sqft)}</strong> sqft
-                      </span>
-                    </div>
-
-                    <div className="property-intelligence">
-                      <div className="property-intelligence-heading">
-                        <span>Property intelligence</span>
-
-                        <span>
-                          {property.true_monthly_cost
-                            ? `${formatCurrency(
-                                property.true_monthly_cost,
-                              )} true monthly`
-                            : "Cost data incomplete"}
-                        </span>
-                      </div>
-
-                      <div className="property-score-grid">
-                        <div>
-                          <span>Trust</span>
-
-                          <strong
-                            className={getScoreClass(property.trust_score)}
-                          >
-                            {getScoreLabel(property.trust_score)}
-                          </strong>
-                        </div>
-
-                        <div>
-                          <span>Safety</span>
-
-                          <strong
-                            className={getScoreClass(property.safety_score)}
-                          >
-                            {getScoreLabel(property.safety_score)}
-                          </strong>
-                        </div>
-
-                        <div>
-                          <span>Water</span>
-
-                          <strong
-                            className={getScoreClass(property.water_score)}
-                          >
-                            {getScoreLabel(property.water_score)}
-                          </strong>
-                        </div>
-
-                        <div>
-                          <span>Network</span>
-
-                          <strong
-                            className={getScoreClass(property.network_score)}
-                          >
-                            {getScoreLabel(property.network_score)}
-                          </strong>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="property-card-actions">
-                      <Link
-                        href={`/dashboard/properties/${property.id}`}
-                        className="dashboard-primary-button dashboard-primary-button--small"
-                      >
-                        Manage property
-                      </Link>
-
-                      <Link
-                        href={
-                          property.slug
-                            ? `/property/${property.slug}`
-                            : `/property/${property.id}`
-                        }
-                        className="dashboard-secondary-button dashboard-secondary-button--small"
-                      >
-                        View listing
-                      </Link>
-                    </div>
-                  </div>
-                </article>
-              ))}
-            </div>
-          </section>
-        )}
-
-        <section className="property-intelligence-banner">
-          <div className="property-intelligence-banner-icon">✦</div>
-
-          <div>
-            <p className="dashboard-eyebrow">KEJATRUE INTELLIGENCE</p>
-
-            <h2>Better property information builds renter confidence.</h2>
-
-            <p>
-              Keep verification, true monthly costs, safety, water and network
-              information accurate. These signals help house hunters understand
-              a property beyond its asking price.
+              Tell KejaTrue what you are listing first. We will then collect the
+              information that actually matters for that type of property.
             </p>
           </div>
 
           <Link
-            href="/dashboard/properties/new"
+            href="/dashboard/properties"
             className="dashboard-secondary-button"
           >
-            Add property data
+            Cancel
           </Link>
         </section>
+
+        {!createdPropertyId ? (
+          <>
+            {/* ==================================================
+                STEP 1 — PROPERTY TYPE
+            ================================================== */}
+
+            <section className="management-card">
+              <div className="management-card-heading">
+                <div>
+                  <span className="eyebrow">01 · Property type</span>
+
+                  <h2>What are you listing?</h2>
+                </div>
+
+                <strong>Required</strong>
+              </div>
+
+              <p className="management-card-intro">
+                Different properties need different information. Select the
+                category that best describes this listing.
+              </p>
+
+              <div
+                className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3"
+                role="radiogroup"
+                aria-label="Property type"
+              >
+                {PROPERTY_TYPES.map((type) => {
+                  const selected = form.propertyType === type.value;
+
+                  return (
+                    <button
+                      type="button"
+                      key={type.value}
+                      onClick={() => updateForm("propertyType", type.value)}
+                      className={[
+                        "rounded-2xl border p-4 text-left transition",
+                        selected
+                          ? "border-black bg-black text-white"
+                          : "border-black/10 bg-white hover:border-black/30",
+                      ].join(" ")}
+                      role="radio"
+                      aria-checked={selected}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <strong>{type.value}</strong>
+
+                        <span
+                          className={[
+                            "flex h-5 w-5 shrink-0 items-center justify-center rounded-full border",
+                            selected
+                              ? "border-white bg-white text-black"
+                              : "border-black/20",
+                          ].join(" ")}
+                        >
+                          {selected ? "✓" : ""}
+                        </span>
+                      </div>
+
+                      <p
+                        className={
+                          selected
+                            ? "mt-2 text-sm text-white/70"
+                            : "mt-2 text-sm text-black/55"
+                        }
+                      >
+                        {type.description}
+                      </p>
+                    </button>
+                  );
+                })}
+              </div>
+            </section>
+
+            {form.propertyType && (
+              <>
+                {/* ==================================================
+                    STEP 2 — BASIC DETAILS
+                ================================================== */}
+
+                <section className="management-card">
+                  <div className="management-card-heading">
+                    <div>
+                      <span className="eyebrow">02 · Basic details</span>
+
+                      <h2>About the property</h2>
+                    </div>
+
+                    <strong>{form.propertyType}</strong>
+                  </div>
+
+                  <div className="management-form-grid">
+                    <label className="management-field management-field--full">
+                      <span>
+                        {hasUnits
+                          ? "Property / development name *"
+                          : "Property name *"}
+                      </span>
+
+                      <input
+                        value={form.title}
+                        onChange={(event) =>
+                          updateForm("title", event.target.value)
+                        }
+                        placeholder={
+                          form.propertyType === "Apartment"
+                            ? "e.g. Sunrise Apartments"
+                            : form.propertyType === "Gated Estate"
+                              ? "e.g. Greenview Estate"
+                              : "e.g. Four Bedroom Family Home"
+                        }
+                      />
+
+                      <small>
+                        {hasUnits
+                          ? "Use the development or building name. Individual units will be added next."
+                          : "Use a clear name that helps house hunters identify the property."}
+                      </small>
+                    </label>
+
+                    <label className="management-field management-field--full">
+                      <span>Description</span>
+
+                      <textarea
+                        value={form.description}
+                        onChange={(event) =>
+                          updateForm("description", event.target.value)
+                        }
+                        rows={5}
+                        placeholder="Describe the property, its surroundings, access, notable features and anything a renter should know."
+                      />
+                    </label>
+
+                    <label className="management-field">
+                      <span>City *</span>
+
+                      <input
+                        value={form.city}
+                        onChange={(event) =>
+                          updateForm("city", event.target.value)
+                        }
+                        placeholder="e.g. Nairobi"
+                      />
+                    </label>
+
+                    <label className="management-field">
+                      <span>Area / neighbourhood *</span>
+
+                      <input
+                        value={form.location}
+                        onChange={(event) =>
+                          updateForm("location", event.target.value)
+                        }
+                        placeholder="e.g. Kilimani"
+                      />
+                    </label>
+
+                    <label className="management-field management-field--full">
+                      <span>Address / landmark</span>
+
+                      <input
+                        value={form.address}
+                        onChange={(event) =>
+                          updateForm("address", event.target.value)
+                        }
+                        placeholder="Street, building, road or nearby landmark"
+                      />
+                    </label>
+                  </div>
+                </section>
+
+                {/* ==================================================
+                    STEP 3 — PROPERTY-SPECIFIC DETAILS
+                ================================================== */}
+
+                <section className="management-card">
+                  <div className="management-card-heading">
+                    <div>
+                      <span className="eyebrow">03 · Property details</span>
+
+                      <h2>
+                        {landListing
+                          ? "Land information"
+                          : commercialListing
+                            ? "Commercial information"
+                            : "Home information"}
+                      </h2>
+                    </div>
+                  </div>
+
+                  {landListing ? (
+                    <div className="rounded-2xl border border-black/10 bg-black/2 p-5">
+                      <p className="text-sm leading-6 text-black/60">
+                        This is a land listing, so bedrooms, bathrooms and
+                        residential unit details are not required.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="management-form-grid">
+                      <label className="management-field">
+                        <span>
+                          {form.listingType === "rent"
+                            ? "Starting monthly rent *"
+                            : "Asking price *"}
+                        </span>
+
+                        <input
+                          type="number"
+                          min="0"
+                          value={form.price}
+                          onChange={(event) =>
+                            updateForm("price", event.target.value)
+                          }
+                          placeholder="25000"
+                        />
+
+                        <small>
+                          For multi-unit properties, this becomes the starting
+                          price. Individual units can have their own rent.
+                        </small>
+                      </label>
+
+                      {residentialListing && (
+                        <>
+                          <label className="management-field">
+                            <span>Bedrooms</span>
+
+                            <input
+                              type="number"
+                              min="0"
+                              value={form.bedrooms}
+                              onChange={(event) =>
+                                updateForm("bedrooms", event.target.value)
+                              }
+                              placeholder="2"
+                            />
+                          </label>
+
+                          <label className="management-field">
+                            <span>Bathrooms</span>
+
+                            <input
+                              type="number"
+                              min="0"
+                              step="0.5"
+                              value={form.bathrooms}
+                              onChange={(event) =>
+                                updateForm("bathrooms", event.target.value)
+                              }
+                              placeholder="2"
+                            />
+                          </label>
+                        </>
+                      )}
+
+                      <label className="management-field">
+                        <span>Area (sq ft)</span>
+
+                        <input
+                          type="number"
+                          min="0"
+                          value={form.areaSqft}
+                          onChange={(event) =>
+                            updateForm("areaSqft", event.target.value)
+                          }
+                          placeholder="850"
+                        />
+                      </label>
+
+                      <label className="management-field">
+                        <span>Year built</span>
+
+                        <input
+                          type="number"
+                          min="1800"
+                          max={new Date().getFullYear()}
+                          value={form.yearBuilt}
+                          onChange={(event) =>
+                            updateForm("yearBuilt", event.target.value)
+                          }
+                          placeholder="2024"
+                        />
+                      </label>
+
+                      <label className="management-field">
+                        <span>Listing type</span>
+
+                        <select
+                          value={form.listingType}
+                          onChange={(event) =>
+                            updateForm(
+                              "listingType",
+                              event.target.value as "rent" | "sale",
+                            )
+                          }
+                        >
+                          <option value="rent">For rent</option>
+
+                          <option value="sale">For sale</option>
+                        </select>
+                      </label>
+
+                      <div className="management-checkbox">
+                        <input
+                          type="checkbox"
+                          checked={form.furnished}
+                          onChange={(event) =>
+                            updateForm("furnished", event.target.checked)
+                          }
+                        />
+
+                        <span>
+                          <strong>Furnished</strong>
+
+                          <small>
+                            The property or unit is offered furnished.
+                          </small>
+                        </span>
+                      </div>
+
+                      <div className="management-checkbox">
+                        <input
+                          type="checkbox"
+                          checked={form.parking}
+                          onChange={(event) =>
+                            updateForm("parking", event.target.checked)
+                          }
+                        />
+
+                        <span>
+                          <strong>Parking available</strong>
+
+                          <small>Parking is available on the property.</small>
+                        </span>
+                      </div>
+
+                      <div className="management-checkbox">
+                        <input
+                          type="checkbox"
+                          checked={form.waterAvailable}
+                          onChange={(event) =>
+                            updateForm("waterAvailable", event.target.checked)
+                          }
+                        />
+
+                        <span>
+                          <strong>Water available</strong>
+
+                          <small>
+                            Water connection is available at the property.
+                          </small>
+                        </span>
+                      </div>
+
+                      <div className="management-checkbox">
+                        <input
+                          type="checkbox"
+                          checked={form.electricityAvailable}
+                          onChange={(event) =>
+                            updateForm(
+                              "electricityAvailable",
+                              event.target.checked,
+                            )
+                          }
+                        />
+
+                        <span>
+                          <strong>Electricity available</strong>
+
+                          <small>Electricity connection is available.</small>
+                        </span>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="management-form-grid mt-6">
+                    <label className="management-field management-field--full">
+                      <span>Amenities</span>
+
+                      <input
+                        value={form.amenities}
+                        onChange={(event) =>
+                          updateForm("amenities", event.target.value)
+                        }
+                        placeholder="Parking, Balcony, CCTV, Borehole, Gym, Lift"
+                      />
+
+                      <small>Separate amenities with commas.</small>
+                    </label>
+
+                    <label className="management-field management-field--full">
+                      <span>Search tags</span>
+
+                      <input
+                        value={form.tags}
+                        onChange={(event) =>
+                          updateForm("tags", event.target.value)
+                        }
+                        placeholder="family, student, furnished, near CBD"
+                      />
+
+                      <small>
+                        These help KejaTrue match the listing to relevant
+                        searches.
+                      </small>
+                    </label>
+                  </div>
+                </section>
+
+                {/* ==================================================
+                    STEP 4 — MULTI UNIT EXPLANATION
+                ================================================== */}
+
+                {hasUnits && (
+                  <section className="management-card">
+                    <div className="management-card-heading">
+                      <div>
+                        <span className="eyebrow">04 · Unit inventory</span>
+
+                        <h2>This property contains multiple units</h2>
+                      </div>
+
+                      <strong>Add after creation</strong>
+                    </div>
+
+                    <div className="rounded-2xl border border-black/10 bg-black/2 p-6">
+                      <div className="grid gap-5 md:grid-cols-3">
+                        <div>
+                          <strong>1A</strong>
+
+                          <p className="mt-1 text-sm text-black/55">
+                            1 bedroom · KSh 25,000
+                          </p>
+                        </div>
+
+                        <div>
+                          <strong>2A</strong>
+
+                          <p className="mt-1 text-sm text-black/55">
+                            2 bedrooms · KSh 32,000
+                          </p>
+                        </div>
+
+                        <div>
+                          <strong>3C</strong>
+
+                          <p className="mt-1 text-sm text-black/55">
+                            2 bedrooms · KSh 35,000
+                          </p>
+                        </div>
+                      </div>
+
+                      <p className="mt-6 text-sm leading-6 text-black/60">
+                        After creating this property, you will be taken to its
+                        management page where you can add every individual unit
+                        and mark each one as available, reserved or occupied.
+                      </p>
+                    </div>
+                  </section>
+                )}
+
+                {/* ==================================================
+                    STEP 5 — PUBLISH
+                ================================================== */}
+
+                <section className="management-card">
+                  <div className="management-card-heading">
+                    <div>
+                      <span className="eyebrow">
+                        {hasUnits ? "05" : "04"} · Publish
+                      </span>
+
+                      <h2>Create listing</h2>
+                    </div>
+                  </div>
+
+                  <p className="management-card-intro">
+                    Your listing will begin with a pending verification status.
+                    You can then add costs, verification evidence, photos, units
+                    and other information from the property management page.
+                  </p>
+
+                  {error && (
+                    <div className="mb-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                      {error}
+                    </div>
+                  )}
+
+                  {success && (
+                    <div className="mb-5 rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
+                      {success}
+                    </div>
+                  )}
+
+                  <div className="management-checkbox mb-6">
+                    <input
+                      type="checkbox"
+                      checked={form.featured}
+                      onChange={(event) =>
+                        updateForm("featured", event.target.checked)
+                      }
+                    />
+
+                    <span>
+                      <strong>Feature this listing</strong>
+
+                      <small>
+                        Only use this for properties you want highlighted.
+                      </small>
+                    </span>
+                  </div>
+
+                  <div className="management-card-footer">
+                    <span>
+                      You can edit everything after creating the property.
+                    </span>
+
+                    <button
+                      type="button"
+                      className="primary-button"
+                      disabled={saving}
+                      onClick={createProperty}
+                    >
+                      {saving ? "Creating property…" : "Create property"}
+                    </button>
+                  </div>
+                </section>
+              </>
+            )}
+          </>
+        ) : (
+          /* ========================================================
+             CREATED PROPERTY
+          ======================================================== */
+
+          <section className="management-card">
+            <div className="text-center">
+              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-black text-2xl text-white">
+                ✓
+              </div>
+
+              <p className="mt-6 text-xs font-semibold tracking-[0.2em] text-black/45">
+                PROPERTY CREATED
+              </p>
+
+              <h2 className="mt-2 text-3xl font-semibold">
+                {hasUnits
+                  ? "Your property is ready for its units."
+                  : "Your property has been created."}
+              </h2>
+
+              <p className="mx-auto mt-4 max-w-xl text-sm leading-6 text-black/60">
+                {hasUnits
+                  ? "Now add the individual apartments, houses or rooms that are actually available to house hunters."
+                  : "Continue to the property management page to complete its costs, verification evidence, photos and other details."}
+              </p>
+
+              {hasUnits && (
+                <div className="mx-auto mt-8 max-w-2xl rounded-2xl border border-black/10 bg-black/2 p-6 text-left">
+                  <strong>Next: add individual units</strong>
+
+                  <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                    {["Apartment 1A", "Apartment 2A", "Apartment 3C"].map(
+                      (example) => (
+                        <div
+                          key={example}
+                          className="rounded-xl border border-black/10 bg-white px-4 py-3 text-sm"
+                        >
+                          {example}
+                        </div>
+                      ),
+                    )}
+                  </div>
+                </div>
+              )}
+
+              <div className="mt-8 flex flex-wrap justify-center gap-3">
+                <button
+                  type="button"
+                  onClick={continueToProperty}
+                  className="dashboard-primary-button"
+                >
+                  {hasUnits
+                    ? "Manage property & add units"
+                    : "Complete property"}
+                </button>
+
+                <Link
+                  href="/dashboard/properties"
+                  className="dashboard-secondary-button"
+                >
+                  Back to properties
+                </Link>
+              </div>
+            </div>
+          </section>
+        )}
       </main>
 
       <SiteFooter />
