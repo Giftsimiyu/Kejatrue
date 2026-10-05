@@ -85,11 +85,41 @@ export default function FavoritesPage() {
           throw propertiesError;
         }
 
+        const { data: propertyImages, error: propertyImagesError } =
+          await supabase
+            .from("property_images")
+            .select("property_id,image_url,is_primary,display_order")
+            .in("property_id", propertyIds)
+            .order("display_order", {
+              ascending: true,
+              nullsFirst: false,
+            });
+
+        if (propertyImagesError) {
+          console.error("Failed to load property images:", propertyImagesError);
+        }
+
+        const imagesByProperty = new Map<
+          string,
+          NonNullable<typeof propertyImages>
+        >();
+
+        for (const image of propertyImages ?? []) {
+          const imagesForProperty =
+            imagesByProperty.get(image.property_id) ?? [];
+
+          imagesForProperty.push(image);
+          imagesByProperty.set(image.property_id, imagesForProperty);
+        }
+
         if (isMounted) {
           const propertyById = new Map(
             (propertyRows ?? []).map((property) => [
               property.id,
-              mapProperty(property),
+              mapProperty({
+                ...property,
+                property_images: imagesByProperty.get(property.id) ?? [],
+              }),
             ]),
           );
           setFavorites(

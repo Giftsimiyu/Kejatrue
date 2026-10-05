@@ -408,16 +408,14 @@ export default function ComparePage() {
               </span>
 
               <h2>
-                KejaTrue keeps the signals separate.
+                Understand what each score means.
               </h2>
 
               <p>
-                A trust score reflects verification evidence.
-                Safety reflects available approved review data.
-                Water, network and area scores use the property
-                or area intelligence recorded for that location.
-                True monthly cost combines rent with known
-                recurring costs.
+                Trust reflects how much of a property has been verified.
+                Safety and area scores summarize available local information.
+                Water and network scores reflect reported service reliability.
+                True monthly cost includes rent and known recurring charges.
               </p>
             </section>
           </>

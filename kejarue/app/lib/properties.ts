@@ -41,6 +41,11 @@ export type Property = {
 
 type PropertyRow = Record<string, any>;
 
+type PropertyImageRow = {
+  image_url?: string | null;
+  is_primary?: boolean | null;
+};
+
 function asText(
   value: unknown,
   fallback = "Not reported",
@@ -74,6 +79,22 @@ export function mapProperty(
   )
     ? row.gallery
     : [];
+  const propertyImages: PropertyImageRow[] = Array.isArray(
+    row.property_images,
+  )
+    ? row.property_images
+    : [];
+  const primaryPropertyImage = propertyImages.find(
+    (image) =>
+      image.is_primary &&
+      typeof image.image_url === "string" &&
+      image.image_url.trim(),
+  );
+  const firstPropertyImage = propertyImages.find(
+    (image) =>
+      typeof image.image_url === "string" &&
+      image.image_url.trim(),
+  );
 
   const location = [
     row.location,
@@ -185,7 +206,9 @@ export function mapProperty(
     ),
 
     image: asText(
-      row.thumbnail ??
+      primaryPropertyImage?.image_url ||
+        firstPropertyImage?.image_url ||
+        row.thumbnail ||
         gallery[0],
       "",
     ),

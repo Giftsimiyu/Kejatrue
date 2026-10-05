@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { InferenceClient } from "@huggingface/inference";
 import { createClient } from "../../../backend/supabase/server";
 
 export const runtime = "nodejs";
@@ -63,8 +62,127 @@ const STAGING_STYLES: Record<string, string> = {
   `,
 };
 
+const REPLICATE_MODEL_URL =
+  "https://api.replicate.com/v1/models/black-forest-labs/flux-kontext-pro/predictions";
+
+type ReplicatePrediction = {
+  id: string;
+  status: "starting" | "processing" | "succeeded" | "failed" | "canceled";
+  output: string | null;
+  error: string | null;
+};
+
 function getStylePrompt(style: string) {
   return STAGING_STYLES[style] ?? STAGING_STYLES.modern;
+}
+
+async function generateStagedImage(
+  apiToken: string,
+  imageUrl: string,
+  prompt: string,
+) {
+  const signal = AbortSignal.timeout(105_000);
+  const headers = {
+    Authorization: `Token ${apiToken}`,
+    "Content-Type": "application/json",
+  };
+
+  let response = await fetch(REPLICATE_MODEL_URL, {
+    method: "POST",
+    headers: {
+      ...headers,
+      Prefer: "wait=60",
+    },
+    body: JSON.stringify({
+      input: {
+        prompt,
+        input_image: imageUrl,
+        aspect_ratio: "match_input_image",
+        output_format: "png",
+        safety_tolerance: 2,
+      },
+    }),
+    signal,
+  });
+
+  if (!response.ok) {
+    throw new Error(
+      `Replicate API error (${response.status}): ${await response.text()}`,
+    );
+  }
+
+  let prediction = (await response.json()) as ReplicatePrediction;
+
+  if (!prediction.id) {
+    throw new Error("Replicate returned a prediction without an ID.");
+  }
+
+  while (
+    prediction.status === "starting" ||
+    prediction.status === "processing"
+  ) {
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+
+    response = await fetch(
+      `https://api.replicate.com/v1/predictions/${encodeURIComponent(prediction.id)}`,
+      {
+        headers: {
+          ...headers,
+          Prefer: "wait=10",
+        },
+        signal,
+      },
+    );
+
+    if (!response.ok) {
+      throw new Error(
+        `Replicate prediction polling failed (${response.status}): ${await response.text()}`,
+      );
+    }
+
+    prediction = (await response.json()) as ReplicatePrediction;
+
+    if (!prediction.id) {
+      throw new Error("Replicate returned a prediction without an ID.");
+    }
+  }
+
+  if (!["succeeded", "failed", "canceled"].includes(prediction.status)) {
+    throw new Error("Replicate returned an invalid prediction status.");
+  }
+
+  if (prediction.status !== "succeeded") {
+    throw new Error(
+      prediction.error ||
+        `Replicate prediction ended with status "${prediction.status}".`,
+    );
+  }
+
+  if (!prediction.output) {
+    throw new Error("Replicate completed without returning an image URL.");
+  }
+
+  const outputUrl = new URL(prediction.output);
+
+  if (outputUrl.protocol !== "https:") {
+    throw new Error("Replicate returned an invalid image URL.");
+  }
+
+  const imageResponse = await fetch(outputUrl, { signal });
+
+  if (!imageResponse.ok) {
+    throw new Error(
+      `Could not download the generated image (${imageResponse.status}).`,
+    );
+  }
+
+  const image = await imageResponse.blob();
+
+  if (!image.type.startsWith("image/") || image.size === 0) {
+    throw new Error("Replicate returned an invalid or empty image.");
+  }
+
+  return image;
 }
 
 function getFileExtension(contentType: string) {
@@ -103,15 +221,15 @@ export async function POST(request: NextRequest) {
      * ---------------------------------------------------------
      */
 
-    const hfToken = process.env.HF_TOKEN;
+    const replicateToken = process.env.REPLICATE_API_TOKEN;
 
-    if (!hfToken) {
-      console.error("HF_TOKEN is missing from environment variables.");
+    if (!replicateToken) {
+      console.error("REPLICATE_API_TOKEN is missing from environment variables.");
 
       return NextResponse.json(
         {
           error:
-            "Hugging Face is not configured. Add HF_TOKEN to .env.local.",
+            "Virtual staging is temporarily unavailable. Please try again later.",
         },
         { status: 500 }
       );
@@ -287,23 +405,20 @@ Maintain realistic lighting, shadows, materials and perspective.
 
     /*
      * ---------------------------------------------------------
-     * 7. Call Hugging Face
+     * 7. Call Replicate
      * ---------------------------------------------------------
      */
-
-    const hf = new InferenceClient(hfToken);
 
     let generatedImage: Blob;
 
     try {
-      generatedImage = await hf.imageToImage({
-        inputs: imageBlob,
-        model: "black-forest-labs/FLUX.1-Kontext-dev",
-        provider: "fal-ai",
-        parameters: { prompt },
-      });
+      generatedImage = await generateStagedImage(
+        replicateToken,
+        imageUrl,
+        prompt,
+      );
     } catch (aiError) {
-      console.error("Hugging Face image generation error:", aiError);
+      console.error("Replicate image generation error:", aiError);
 
       const errorMessage =
         aiError instanceof Error
@@ -328,8 +443,7 @@ Maintain realistic lighting, shadows, materials and perspective.
       return NextResponse.json(
         {
           error:
-            "AI image generation failed. Your Hugging Face free inference allowance may be exhausted, or the selected model may currently be unavailable.",
-          details: errorMessage,
+            "We couldn't create this visualisation right now. Please try again shortly.",
         },
         { status: 502 }
       );
@@ -460,9 +574,7 @@ Maintain realistic lighting, shadows, materials and perspective.
     return NextResponse.json(
       {
         error:
-          error instanceof Error
-            ? error.message
-            : "Something went wrong while creating the AI redesign.",
+          "We couldn't complete the visualisation right now. Please try again shortly.",
       },
       { status: 500 }
     );

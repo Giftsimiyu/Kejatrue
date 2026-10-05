@@ -34,6 +34,13 @@ type SearchFilters = {
   minSafety: string;
 };
 
+type PropertyCardImage = {
+  property_id: string;
+  image_url: string;
+  is_primary: boolean | null;
+  display_order: number | null;
+};
+
 const defaultFilters: SearchFilters = {
   search: "",
   propertyType: "all",
@@ -156,7 +163,45 @@ export default function PropertyDiscovery() {
         return;
       }
 
-      const mappedProperties = (data ?? []).map(mapProperty);
+      const propertyIds = (data ?? []).map((property) => property.id);
+      let imagesByProperty = new Map<string, PropertyCardImage[]>();
+
+      if (propertyIds.length > 0) {
+        const { data: propertyImages, error: propertyImagesError } =
+          await supabase
+            .from("property_images")
+            .select("property_id,image_url,is_primary,display_order")
+            .in("property_id", propertyIds)
+            .order("display_order", {
+              ascending: true,
+              nullsFirst: false,
+            });
+
+        if (propertyImagesError) {
+          console.error("Failed to load property images:", propertyImagesError);
+        } else {
+          imagesByProperty = new Map();
+
+          for (const image of propertyImages ?? []) {
+            const propertyImagesForProperty =
+              imagesByProperty.get(image.property_id) ?? [];
+
+            propertyImagesForProperty.push(image);
+            imagesByProperty.set(image.property_id, propertyImagesForProperty);
+          }
+        }
+      }
+
+      if (!mounted) {
+        return;
+      }
+
+      const mappedProperties = (data ?? []).map((property) =>
+        mapProperty({
+          ...property,
+          property_images: imagesByProperty.get(property.id) ?? [],
+        }),
+      );
 
       setProperties(mappedProperties);
 

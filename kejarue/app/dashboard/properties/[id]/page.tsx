@@ -1347,7 +1347,7 @@ export default function PropertyManagementPage() {
 
               <div className="management-card-footer">
                 <span>
-                  Current database calculation:{" "}
+                  Current true monthly cost:{" "}
                   {money(property.true_monthly_cost)}
                 </span>
 
@@ -1445,7 +1445,7 @@ export default function PropertyManagementPage() {
 
               <div className="management-card-footer">
                 <span>
-                  Trust Score status:{" "}
+                  Current trust score:{" "}
                   {property.trust_score === null
                     ? "Waiting for verification data"
                     : `${score(property.trust_score)}/100`}

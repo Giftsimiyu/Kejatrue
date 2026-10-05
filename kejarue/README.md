@@ -42,6 +42,34 @@ To learn more about Next.js, take a look at the following resources:
 
 You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
 
+## Groq AI assistant
+
+The chat assistant uses Groq's OpenAI-compatible chat-completions API and keeps
+the API key on the server. Add these variables to `.env.local`:
+
+```env
+GROQ_API_KEY=your_groq_api_key
+GROQ_MODEL=openai/gpt-oss-20b
+```
+
+Create a key in the [Groq Console](https://console.groq.com/keys). `GROQ_MODEL`
+can be changed to any active Groq model that supports tool use. Restart the
+development server after changing environment variables.
+
+## Replicate virtual staging
+
+Virtual staging uses the `black-forest-labs/flux-kontext-pro` image-editing
+model through Replicate. Add your Replicate API token to `.env.local`:
+
+```env
+REPLICATE_API_TOKEN=your_replicate_api_token
+```
+
+Create a token in the [Replicate account settings](https://replicate.com/account/api-tokens).
+The staging endpoint keeps this token on the server and saves generated images
+to Supabase Storage. Set `REPLICATE_API_TOKEN` in your deployment environment
+as well as in `.env.local`.
+
 ## Deploy on Vercel
 
 The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.

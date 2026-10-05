@@ -220,9 +220,9 @@ export default async function DashboardPage() {
           <div>
             <span className="eyebrow">Account</span>
 
-            <strong>Connected</strong>
+            <strong>Active</strong>
 
-            <small>Your KejaTrue account is linked to Supabase.</small>
+            <small>Your KejaTrue account is ready to use.</small>
           </div>
 
           <div>
