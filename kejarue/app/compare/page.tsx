@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { HiArrowUpRight, HiHome } from "react-icons/hi2";
 
 import { createClient } from "../backend/supabase/client";
 
@@ -180,7 +181,7 @@ export default function ComparePage() {
         </Link>
 
         <Link href="/listings" className="text-button">
-          Back to listings <span>↗</span>
+          Back to listings <HiArrowUpRight aria-hidden="true" />
         </Link>
       </header>
 
@@ -254,7 +255,7 @@ export default function ComparePage() {
                         }
                       />
                     ) : (
-                      <span>⌂</span>
+                      <HiHome aria-hidden="true" />
                     )}
                   </div>
 
@@ -394,7 +395,7 @@ export default function ComparePage() {
                       }`}
                       className="primary-button compare-card-link"
                     >
-                      View property <span>↗</span>
+                      View property <HiArrowUpRight aria-hidden="true" />
                     </Link>
                   </div>
                 </article>

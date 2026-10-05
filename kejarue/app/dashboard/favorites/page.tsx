@@ -3,8 +3,15 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { createClient } from "../../backend/supabase/client";
-import { getFavoriteUserIds } from "../../lib/favorite-user";
+import {
+  HiArrowUpRight,
+  HiChatBubbleLeftRight,
+  HiHeart,
+  HiHome,
+  HiUser,
+} from "react-icons/hi2";
+
+import { createClient } from "../../backend/supabase/client";import { getFavoriteUserIds } from "../../lib/favorite-user";
 import { mapProperty, type Property } from "../../lib/properties";
 import { BrandLink, SiteFooter } from "../../components/site-chrome";
 import PropertyCard from "../../components/property-card";
@@ -138,7 +145,7 @@ export default function FavoritesPage() {
       <aside className="sidebar">
         <BrandLink />
         <div className="sidebar-user">
-          <div className="avatar">♡</div>
+          <div className="avatar"><HiHeart aria-hidden="true" /></div>
           <div>
             <strong>House hunter</strong>
             <span>Your saved homes</span>
@@ -146,23 +153,23 @@ export default function FavoritesPage() {
         </div>
         <nav className="main-nav" aria-label="House hunter navigation">
           <Link className="nav-item" href="/listings">
-            <span>⌂</span> Discover
+            <HiHome aria-hidden="true" /> Discover
           </Link>
           <Link className="nav-item active" href="/dashboard/favorites">
-            <span>♡</span> Favorites
+            <HiHeart aria-hidden="true" /> Favorites
           </Link>
           <Link className="nav-item" href="/dashboard/messages">
-            <span>◷</span> Messages
+            <HiChatBubbleLeftRight aria-hidden="true" /> Messages
           </Link>
           <Link className="nav-item" href="/dashboard/profile">
-            <span>◉</span> Profile
+            <HiUser aria-hidden="true" /> Profile
           </Link>
         </nav>
         <div className="sidebar-note">
           <span className="eyebrow">Before you commit</span>
           <strong>See the whole story behind every home.</strong>
           <Link href="/tools/budget" className="text-button">
-            Check your budget <span>↗</span>
+            Check your budget <HiArrowUpRight aria-hidden="true" />
           </Link>
         </div>
       </aside>
@@ -175,7 +182,7 @@ export default function FavoritesPage() {
           </div>
           <div className="top-actions">
             <Link href="/listings" className="text-button">
-              Find a home <span>↗</span>
+              Find a home <HiArrowUpRight aria-hidden="true" />
             </Link>
             <DashboardAccountActions />
           </div>
@@ -189,7 +196,7 @@ export default function FavoritesPage() {
               <p>Keep the properties you’re considering in one place.</p>
             </div>
             <Link href="/listings" className="dark-button">
-              Explore homes <span>↗</span>
+              Explore homes <HiArrowUpRight aria-hidden="true" />
             </Link>
           </div>
 
@@ -217,14 +224,14 @@ export default function FavoritesPage() {
 
           {!errorMessage && !isLoading && favorites.length === 0 && (
             <div className="listing-state">
-              <span className="state-mark">♡</span>
+              <span className="state-mark"><HiHeart aria-hidden="true" /></span>
               <h3>No favorite homes yet</h3>
               <p>
                 Save homes you like while browsing, and they’ll be waiting here
                 when you’re ready to compare.
               </p>
               <Link href="/listings" className="dark-button">
-                Browse property listings <span>↗</span>
+                Browse property listings <HiArrowUpRight aria-hidden="true" />
               </Link>
             </div>
           )}

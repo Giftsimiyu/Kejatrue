@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createClient } from "../backend/supabase/client";
 
 export type PropertyUnit = {
@@ -52,6 +52,10 @@ export default function PropertyUnitManager({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+
+  useEffect(() => {
+    setUnits(initialUnits);
+  }, [initialUnits]);
 
   function updateField(field: keyof PropertyUnit, value: string) {
     setUnit((current) => ({

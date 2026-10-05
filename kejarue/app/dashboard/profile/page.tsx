@@ -10,6 +10,7 @@ import {
 } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
+import { HiArrowLeft, HiArrowUpRight } from "react-icons/hi2";
 
 import { createClient } from "../../backend/supabase/client";
 import DashboardAccountActions from "../../components/dashboard-account-actions";
@@ -215,7 +216,7 @@ export default function ProfilePage() {
           <DashboardAccountActions />
 
           <Link href="/" className="profile-back">
-            ← Back to KejaTrue
+            <HiArrowLeft aria-hidden="true" /> Back to KejaTrue
           </Link>
 
           <span className="eyebrow">
@@ -321,7 +322,7 @@ export default function ProfilePage() {
               disabled={saving}
             >
               {saving ? "Saving..." : "Save profile"}
-              <span>↗</span>
+              <HiArrowUpRight aria-hidden="true" />
             </button>
           </form>
         </div>

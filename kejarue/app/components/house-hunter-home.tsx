@@ -1,17 +1,14 @@
 import Link from "next/link";
+import {
+  HiArrowUpRight,
+  HiBuildingOffice2,
+  HiHome,
+  HiMagnifyingGlass,
+  HiOutlineHeart,
+  HiOutlineSparkles,
+  HiUser,
+} from "react-icons/hi2";
 import { BrandLink, SiteFooter } from "./site-chrome";
-import DashboardAccountActions from "./dashboard-account-actions";
-
-type HouseHunterHomeProps = {
-  userEmail?: string;
-};
-
-const navigation = [
-  { label: "Home", href: "/" },
-  { label: "Property listings", href: "/listings" },
-  { label: "About", href: "/about" },
-  { label: "Contact", href: "/contact" },
-];
 
 const tools = [
   {
@@ -34,69 +31,41 @@ const tools = [
   },
 ];
 
-export default function HouseHunterHome({ userEmail }: HouseHunterHomeProps) {
-  const initials = userEmail?.slice(0, 2).toUpperCase() || "HH";
-
+export default function HouseHunterHome() {
   return (
     <main className="house-hunter-home">
       <aside className="house-hunter-sidebar">
         <BrandLink />
-        <div className="house-hunter-user">
-          <span className="avatar">{initials}</span>
-          <div>
-            <strong>House hunter</strong>
-            <span>Explore with clarity</span>
-          </div>
-        </div>
         <nav
           className="house-hunter-side-nav"
           aria-label="House hunter navigation"
         >
           <Link href="/" className="active">
-            <span>⌂</span> Home
+            <HiHome aria-hidden="true" /> Home
           </Link>
           <Link href="/listings">
-            <span>⌕</span> Property listings
+            <HiMagnifyingGlass aria-hidden="true" /> Property listings
           </Link>
           <Link href="/dashboard/favorites">
-            <span>♡</span> Favorites
+            <HiOutlineHeart aria-hidden="true" /> Favorites
           </Link>
           <Link href="/dashboard/messages">
-            <span>◷</span> Messages
+            <HiBuildingOffice2 aria-hidden="true" /> Messages
           </Link>
           <Link href="/dashboard/profile">
-            <span>◉</span> Profile
+            <HiUser aria-hidden="true" /> Profile
           </Link>
         </nav>
         <div className="house-hunter-sidebar-note">
           <span className="eyebrow">Before you commit</span>
           <strong>See the whole story behind every home.</strong>
           <Link href="/tools/budget" className="text-button">
-            Check your budget <span>↗</span>
+            Check your budget <HiArrowUpRight aria-hidden="true" />
           </Link>
         </div>
       </aside>
 
       <section className="house-hunter-workspace">
-        <header className="house-hunter-topbar">
-          <nav aria-label="House hunter pages">
-            {navigation.map((item) => (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={item.href === "/" ? "active" : ""}
-              >
-                {item.label}
-              </Link>
-            ))}
-          </nav>
-          <div className="house-hunter-account">
-            <span>{userEmail || "Your account"}</span>
-            <span className="avatar small">{initials}</span>
-            <DashboardAccountActions />
-          </div>
-        </header>
-
         <div className="house-hunter-content">
           <section className="house-hunter-hero">
             <div className="house-hunter-hero-copy">
@@ -109,7 +78,7 @@ export default function HouseHunterHome({ userEmail }: HouseHunterHomeProps) {
                 utilities and lived details before you commit.
               </p>
               <Link href="/listings" className="dark-button">
-                Explore property listings <span>↗</span>
+                Explore property listings <HiArrowUpRight aria-hidden="true" />
               </Link>
             </div>
             <div className="house-hunter-hero-art" aria-hidden="true">
@@ -124,10 +93,12 @@ export default function HouseHunterHome({ userEmail }: HouseHunterHomeProps) {
           </section>
 
           <section className="house-hunter-search" aria-label="Search homes">
-            <span className="search-icon">⌕</span>
+            <span className="search-icon" aria-hidden="true">
+              <HiMagnifyingGlass />
+            </span>
             <span>Search by location, neighbourhood or property name</span>
             <Link href="/listings" className="dark-button">
-              Search homes <span>↗</span>
+              Search homes <HiArrowUpRight aria-hidden="true" />
             </Link>
           </section>
 
@@ -138,7 +109,7 @@ export default function HouseHunterHome({ userEmail }: HouseHunterHomeProps) {
                 <h2>Everything you need for a clearer move.</h2>
               </div>
               <Link href="/listings" className="text-button">
-                View all homes <span>↗</span>
+                View all homes <HiArrowUpRight aria-hidden="true" />
               </Link>
             </div>
             <div className="house-hunter-tools">
@@ -151,14 +122,18 @@ export default function HouseHunterHome({ userEmail }: HouseHunterHomeProps) {
                   <span className="tool-number">{tool.number}</span>
                   <h3>{tool.title}</h3>
                   <p>{tool.description}</p>
-                  <span className="tool-arrow">↗</span>
+                  <span className="tool-arrow" aria-hidden="true">
+                    <HiArrowUpRight />
+                  </span>
                 </Link>
               ))}
             </div>
           </section>
 
           <section className="house-hunter-principle">
-            <span className="house-hunter-principle-mark">K</span>
+            <span className="house-hunter-principle-mark" aria-hidden="true">
+              <HiOutlineSparkles />
+            </span>
             <div>
               <span className="eyebrow">The KejaTrue principle</span>
               <h2>Good listings answer questions before they are asked.</h2>
@@ -168,7 +143,7 @@ export default function HouseHunterHome({ userEmail }: HouseHunterHomeProps) {
               </p>
             </div>
             <Link href="/about" className="dark-button">
-              How it works <span>↗</span>
+              How it works <HiArrowUpRight aria-hidden="true" />
             </Link>
           </section>
         </div>

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { HiCheckCircle } from "react-icons/hi2";
 import { createClient } from "../../backend/supabase/client";
 import { SiteNavbar } from "../../components/site-chrome";
 import DashboardAccountActions from "../../components/dashboard-account-actions";
@@ -395,7 +396,7 @@ export default function VisitRequestsPage() {
 
                 {request.status === "confirmed" && (
                   <div className="visit-confirmed-note">
-                    ✓ This viewing has been confirmed.
+                    <HiCheckCircle aria-hidden="true" /> This viewing has been confirmed.
                   </div>
                 )}
               </article>

@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useState } from "react";
+import { HiArrowUpRight } from "react-icons/hi2";
 import { PublicPage } from "../components/public-page";
 
 const starterQuestions = [
@@ -36,7 +37,7 @@ export default function AssistantPage() {
               key={starter}
               onClick={() => setQuestion(starter)}
             >
-              {starter} <span>↗</span>
+              {starter} <HiArrowUpRight aria-hidden="true" />
             </button>
           ))}
         </div>
@@ -50,7 +51,7 @@ export default function AssistantPage() {
             rows={4}
           />
           <button className="dark-button" type="submit">
-            Ask KejaTrue <span>↗</span>
+            Ask KejaTrue <HiArrowUpRight aria-hidden="true" />
           </button>
         </form>
         {answer && (

@@ -1,7 +1,23 @@
 import Link from "next/link";
+import {
+  HiArrowDown,
+  HiArrowUpRight,
+  HiBuildingOffice2,
+  HiChatBubbleLeftRight,
+  HiCheck,
+  HiCheckCircle,
+  HiCurrencyDollar,
+  HiHome,
+  HiKey,
+  HiMagnifyingGlass,
+  HiMap,
+  HiShieldCheck,
+  HiSparkles,
+} from "react-icons/hi2";
 import { createClient } from "./backend/supabase/server";
 import HouseHunterHome from "./components/house-hunter-home";
 import { BrandLink, SiteFooter } from "./components/site-chrome";
+import { normalizeRole } from "./lib/roles";
 
 const audiences = [
   {
@@ -11,6 +27,7 @@ const audiences = [
       "Search homes, compare real monthly costs and understand the area before you decide.",
     href: "/listings",
     action: "Explore homes",
+    icon: HiHome,
   },
   {
     role: "Agent",
@@ -19,6 +36,7 @@ const audiences = [
       "Create detailed listings, respond to enquiries and give house hunters better information.",
     href: "/auth?role=agent",
     action: "Join as an agent",
+    icon: HiBuildingOffice2,
   },
   {
     role: "Landlord",
@@ -27,6 +45,7 @@ const audiences = [
       "Present your property clearly, manage enquiries and build trust through better information.",
     href: "/auth?role=landlord",
     action: "Join as a landlord",
+    icon: HiKey,
   },
 ];
 
@@ -36,24 +55,28 @@ const intelligenceFeatures = [
     title: "True monthly cost",
     description:
       "Rent is only the beginning. See recurring charges and everyday costs together.",
+    icon: HiCurrencyDollar,
   },
   {
     number: "02",
     title: "Property trust",
     description:
       "Understand what has been verified, what remains unverified and why the property received its trust score.",
+    icon: HiShieldCheck,
   },
   {
     number: "03",
     title: "Area intelligence",
     description:
       "Water, network, security, roads, lighting, flood risk and noise belong beside the property.",
+    icon: HiMap,
   },
   {
     number: "04",
     title: "Lived experience",
     description:
       "Reviews and reports help house hunters understand what a listing alone cannot tell them.",
+    icon: HiChatBubbleLeftRight,
   },
 ];
 
@@ -62,33 +85,63 @@ const steps = [
     number: "01",
     title: "Discover",
     text: "Search homes by location, budget, property type and the things that matter to you.",
+    icon: HiMagnifyingGlass,
   },
   {
     number: "02",
     title: "Understand",
     text: "Look beyond rent. See recurring costs, verification, utilities and area intelligence.",
+    icon: HiSparkles,
   },
   {
     number: "03",
     title: "Compare",
     text: "Put properties side by side using information that actually affects your decision.",
+    icon: HiCheckCircle,
   },
   {
     number: "04",
     title: "Visit",
     text: "Request a viewing and connect with the agent or landlord when you're ready.",
+    icon: HiHome,
   },
 ];
 
-export default async function Home() {
+export default async function Home({
+  searchParams,
+}: {
+  searchParams?: Promise<{ workspace?: string }> | { workspace?: string };
+}) {
+  const resolvedSearchParams = searchParams
+    ? await Promise.resolve(searchParams)
+    : null;
+
   const supabase = await createClient();
 
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (user?.user_metadata?.role === "house-hunter") {
-    return <HouseHunterHome userEmail={user.email} />;
+  const requestedWorkspace = normalizeRole(resolvedSearchParams?.workspace);
+  const normalizedUserRole = normalizeRole(user?.user_metadata?.role);
+
+  const { data: profile } = user
+    ? await supabase
+        .from("users")
+        .select("role")
+        .eq("auth_user_id", user.id)
+        .maybeSingle()
+    : { data: null };
+
+  const normalizedProfileRole = normalizeRole(profile?.role);
+
+  const isHouseHunterWorkspace =
+    requestedWorkspace === "house-hunter" ||
+    normalizedUserRole === "house-hunter" ||
+    normalizedProfileRole === "house-hunter";
+
+  if (isHouseHunterWorkspace) {
+    return <HouseHunterHome />;
   }
 
   return (
@@ -113,7 +166,7 @@ export default async function Home() {
           </Link>
 
           <Link href="/auth" className="dark-button">
-            Create account <span>↗</span>
+            Create account <HiArrowUpRight aria-hidden="true" />
           </Link>
         </div>
       </header>
@@ -138,18 +191,24 @@ export default async function Home() {
 
           <div className="landing-hero-actions">
             <Link href="/listings" className="dark-button">
-              Explore homes <span>↗</span>
+              Explore homes <HiArrowUpRight aria-hidden="true" />
             </Link>
 
             <Link href="#how-it-works" className="text-button">
-              See how it works <span>↓</span>
+              See how it works <HiArrowDown aria-hidden="true" />
             </Link>
           </div>
 
           <div className="landing-trust-line">
-            <span>✓ Real monthly costs</span>
-            <span>✓ Verification signals</span>
-            <span>✓ Area intelligence</span>
+            <span>
+              <HiCheckCircle aria-hidden="true" /> Real monthly costs
+            </span>
+            <span>
+              <HiShieldCheck aria-hidden="true" /> Verification signals
+            </span>
+            <span>
+              <HiMap aria-hidden="true" /> Area intelligence
+            </span>
           </div>
         </div>
 
@@ -169,7 +228,9 @@ export default async function Home() {
             </div>
 
             <div className="landing-photo-badge">
-              <span>✓</span>
+              <span>
+                <HiCheck aria-hidden="true" />
+              </span>
               Verified signals
             </div>
           </div>
@@ -212,9 +273,13 @@ export default async function Home() {
         </div>
 
         <Link href="/listings" className="landing-search-button">
-          <span>⌕</span>
+          <span className="landing-search-icon">
+            <HiMagnifyingGlass aria-hidden="true" />
+          </span>
           Search homes by location, budget or property type
-          <b>↗</b>
+          <b aria-hidden="true">
+            <HiArrowUpRight />
+          </b>
         </Link>
       </section>
 
@@ -233,15 +298,23 @@ export default async function Home() {
         </div>
 
         <div className="landing-process">
-          {steps.map((step) => (
-            <article key={step.number}>
-              <span>{step.number}</span>
+          {steps.map((step) => {
+            const Icon = step.icon;
 
-              <h3>{step.title}</h3>
+            return (
+              <article key={step.number}>
+                <span className="landing-step-number">{step.number}</span>
 
-              <p>{step.text}</p>
-            </article>
-          ))}
+                <div className="landing-step-icon">
+                  <Icon aria-hidden="true" />
+                </div>
+
+                <h3>{step.title}</h3>
+
+                <p>{step.text}</p>
+              </article>
+            );
+          })}
         </div>
       </section>
 
@@ -268,17 +341,24 @@ export default async function Home() {
         </div>
 
         <div className="feature-list">
-          {intelligenceFeatures.map((feature) => (
-            <div key={feature.number}>
-              <strong>{feature.number}</strong>
+          {intelligenceFeatures.map((feature) => {
+            const Icon = feature.icon;
 
-              <span>
-                <b>{feature.title}</b>
+            return (
+              <div key={feature.number}>
+                <strong>{feature.number}</strong>
 
-                {feature.description}
-              </span>
-            </div>
-          ))}
+                <span>
+                  <b>
+                    <Icon aria-hidden="true" />
+                    {feature.title}
+                  </b>
+
+                  {feature.description}
+                </span>
+              </div>
+            );
+          })}
         </div>
       </section>
 
@@ -300,19 +380,29 @@ export default async function Home() {
         </div>
 
         <div className="audience-grid">
-          {audiences.map((audience) => (
-            <article className="audience-card" key={audience.role}>
-              <span className="eyebrow">{audience.role}</span>
+          {audiences.map((audience) => {
+            const Icon = audience.icon;
 
-              <h3>{audience.title}</h3>
+            return (
+              <article className="audience-card" key={audience.role}>
+                <div className="audience-card-header">
+                  <span className="audience-icon">
+                    <Icon aria-hidden="true" />
+                  </span>
 
-              <p>{audience.description}</p>
+                  <span className="eyebrow">{audience.role}</span>
+                </div>
 
-              <Link href={audience.href} className="text-button">
-                {audience.action} <span>↗</span>
-              </Link>
-            </article>
-          ))}
+                <h3>{audience.title}</h3>
+
+                <p>{audience.description}</p>
+
+                <Link href={audience.href} className="text-button">
+                  {audience.action} <HiArrowUpRight aria-hidden="true" />
+                </Link>
+              </article>
+            );
+          })}
         </div>
       </section>
 
@@ -336,7 +426,7 @@ export default async function Home() {
         </p>
 
         <Link href="/listings" className="dark-button">
-          Explore homes <span>↗</span>
+          Explore homes <HiArrowUpRight aria-hidden="true" />
         </Link>
       </section>
 

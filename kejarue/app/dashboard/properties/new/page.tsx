@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import { HiCheck } from "react-icons/hi2";
 
 import { createClient } from "../../../backend/supabase/client";
 import { SiteFooter, SiteNavbar } from "../../../components/site-chrome";
@@ -575,8 +576,9 @@ export default function NewPropertyPage() {
                               ? "border-white bg-white text-black"
                               : "border-black/20",
                           ].join(" ")}
+                          aria-hidden="true"
                         >
-                          {selected ? "✓" : ""}
+                          {selected ? <HiCheck size={12} /> : null}
                         </span>
                       </div>
 
@@ -1059,7 +1061,7 @@ export default function NewPropertyPage() {
           <section className="management-card">
             <div className="text-center">
               <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-black text-2xl text-white">
-                ✓
+                <HiCheck aria-hidden="true" />
               </div>
 
               <p className="mt-6 text-xs font-semibold tracking-[0.2em] text-black/45">

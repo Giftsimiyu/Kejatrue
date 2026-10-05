@@ -1,6 +1,15 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import {
+  HiArrowPath,
+  HiChevronRight,
+  HiMiniArrowsPointingOut,
+  HiPause,
+  HiPlay,
+  HiPlus,
+  HiMinus,
+} from "react-icons/hi2";
 
 type VirtualTour = {
   id: string;
@@ -205,7 +214,9 @@ export default function VirtualTourViewer({ tours }: VirtualTourViewerProps) {
                   <small>360° view</small>
                 </span>
 
-                <b>›</b>
+                <b aria-hidden="true">
+                  <HiChevronRight />
+                </b>
               </button>
             ))}
           </div>
@@ -231,15 +242,31 @@ export default function VirtualTourViewer({ tours }: VirtualTourViewerProps) {
                 className={autoTour ? "is-active" : ""}
                 onClick={() => setAutoTour((value) => !value)}
               >
-                {autoTour ? "⏸ Auto tour" : "▶ Auto tour"}
+                {autoTour ? (
+                  <>
+                    <HiPause aria-hidden="true" /> Auto tour
+                  </>
+                ) : (
+                  <>
+                    <HiPlay aria-hidden="true" /> Auto tour
+                  </>
+                )}
               </button>
 
               <button type="button" onClick={resetView}>
-                ↺ Reset
+                <HiArrowPath aria-hidden="true" /> Reset
               </button>
 
               <button type="button" onClick={toggleFullscreen}>
-                {fullscreen ? "⤢ Exit" : "⛶ Fullscreen"}
+                {fullscreen ? (
+                  <>
+                    <HiMiniArrowsPointingOut aria-hidden="true" /> Exit
+                  </>
+                ) : (
+                  <>
+                    <HiMiniArrowsPointingOut aria-hidden="true" /> Fullscreen
+                  </>
+                )}
               </button>
             </div>
           </div>
@@ -249,7 +276,7 @@ export default function VirtualTourViewer({ tours }: VirtualTourViewerProps) {
 
             <div className="virtual-tour-floating-controls">
               <button type="button" onClick={zoomOut} aria-label="Zoom out">
-                −
+                <HiMinus aria-hidden="true" />
               </button>
 
               <div className="virtual-tour-zoom-readout">
@@ -258,7 +285,7 @@ export default function VirtualTourViewer({ tours }: VirtualTourViewerProps) {
               </div>
 
               <button type="button" onClick={zoomIn} aria-label="Zoom in">
-                +
+                <HiPlus aria-hidden="true" />
               </button>
             </div>
 
@@ -269,10 +296,10 @@ export default function VirtualTourViewer({ tours }: VirtualTourViewerProps) {
           </div>
 
           <div className="virtual-tour-bottom-bar">
-            <span>↔ Drag</span>
-            <span>⌕ Scroll to zoom</span>
-            <span>⛶ Fullscreen</span>
-            <span>⌨ Keyboard</span>
+            <span>Drag</span>
+            <span>Scroll to zoom</span>
+            <span>Fullscreen</span>
+            <span>Keyboard</span>
           </div>
         </div>
       </div>

@@ -4,10 +4,17 @@ import type { RoleId } from "./roles";
 type DatabaseRole = "house_hunter" | "agent" | "landlord";
 
 export function toRoleId(
-  role: DatabaseRole | string | null | undefined
+  role: DatabaseRole | string | null | undefined,
 ): RoleId {
-  if (role === "agent") return "agent";
-  if (role === "landlord") return "landlord";
+  const normalizedRole =
+    typeof role === "string" ? role.trim().toLowerCase() : role;
+
+  if (normalizedRole === "agent") return "agent";
+  if (normalizedRole === "landlord") return "landlord";
+  if (normalizedRole === "house_hunter" || normalizedRole === "house-hunter") {
+    return "house-hunter";
+  }
+
   return "house-hunter";
 }
 

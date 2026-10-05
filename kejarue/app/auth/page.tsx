@@ -1,17 +1,18 @@
 "use client";
 
 import { type FormEvent, useState } from "react";
+import { HiArrowUpRight, HiCheckCircle } from "react-icons/hi2";
 
 import { useRouter, useSearchParams } from "next/navigation";
 
 import { createClient } from "../backend/supabase/client";
 
-import { roles, type RoleId } from "../lib/roles";
+import { normalizeRole, roles, type RoleId } from "../lib/roles";
 
 import { BrandLink, SiteFooter } from "../components/site-chrome";
 
 function isValidRole(value: string | null): value is RoleId {
-  return value === "house-hunter" || value === "agent" || value === "landlord";
+  return normalizeRole(value) !== null;
 }
 
 export default function AuthPage() {
@@ -140,8 +141,8 @@ export default function AuthPage() {
         return;
       }
 
-      if (profile.role === "house_hunter") {
-        router.push(nextPath ?? "/");
+      if (normalizeRole(profile.role) === "house-hunter") {
+        router.push(nextPath ?? "/?workspace=house-hunter");
       } else {
         router.push(nextPath ?? "/dashboard");
       }
@@ -209,7 +210,7 @@ export default function AuthPage() {
      */
 
     if (data.user) {
-      const databaseRole = role === "house-hunter" ? "house_hunter" : role;
+      const databaseRole = normalizeRole(role) === "house-hunter" ? "house_hunter" : role;
 
       await supabase
         .from("users")
@@ -228,7 +229,7 @@ export default function AuthPage() {
      * appropriate first experience.
      */
 
-    if (role === "house-hunter") {
+    if (normalizeRole(role) === "house-hunter") {
       router.push("/");
     } else {
       router.push("/dashboard");
@@ -314,7 +315,12 @@ export default function AuthPage() {
                   }
                   onClick={() => setRole(item.id)}
                 >
-                  <span className="role-icon">{item.icon}</span>
+                  <span className="role-icon">
+                    {(() => {
+                      const Icon = item.icon;
+                      return <Icon aria-hidden="true" />;
+                    })()}
+                  </span>
 
                   <span>
                     <strong>{item.label}</strong>
@@ -322,7 +328,11 @@ export default function AuthPage() {
                     <small>{item.description}</small>
                   </span>
 
-                  <i>{role === item.id ? "●" : "○"}</i>
+                  <i>
+                    {role === item.id ? (
+                      <HiCheckCircle aria-hidden="true" />
+                    ) : null}
+                  </i>
                 </button>
               ))}
             </div>
@@ -381,7 +391,7 @@ export default function AuthPage() {
                   ? "Create my account"
                   : "Sign in"}
 
-              <span>↗</span>
+              <HiArrowUpRight aria-hidden="true" />
             </button>
           </form>
 

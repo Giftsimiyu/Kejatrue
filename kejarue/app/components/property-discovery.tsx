@@ -3,6 +3,17 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
+import {
+  HiArrowUpRight,
+  HiChatBubbleLeftRight,
+  HiHeart,
+  HiHome,
+  HiMagnifyingGlass,
+  HiMinus,
+  HiPlus,
+  HiStar,
+  HiUser,
+} from "react-icons/hi2";
 
 import { createClient } from "../backend/supabase/client";
 import { getFavoriteUserIds, insertFavorite } from "../lib/favorite-user";
@@ -47,12 +58,27 @@ const propertyTypes = [
   "Villa",
   "Gated Estate",
   "Student Residence",
+  "Commercial",
+  "Office",
+  "Shop",
+  "Land",
+  "Other",
 ];
 
 function normalise(value: unknown) {
   return String(value ?? "")
     .trim()
     .toLowerCase();
+}
+
+function numberOrNull(value: string) {
+  if (!value.trim()) {
+    return null;
+  }
+
+  const parsed = Number(value);
+
+  return Number.isFinite(parsed) ? parsed : null;
 }
 
 export default function PropertyDiscovery() {
@@ -63,6 +89,7 @@ export default function PropertyDiscovery() {
   const [showFilters, setShowFilters] = useState(false);
 
   const [saved, setSaved] = useState<string[]>([]);
+
   const [properties, setProperties] = useState<Property[]>([]);
 
   const [isLoading, setIsLoading] = useState(true);
@@ -75,6 +102,16 @@ export default function PropertyDiscovery() {
 
   const [isAuthenticated, setIsAuthenticated] = useState(false);
 
+  /*
+   * LOAD PROPERTIES
+   *
+   * IMPORTANT:
+   * Do not filter by moderation_status here because that
+   * column is not part of the current property schema.
+   *
+   * We load active listings and perform the house-hunter
+   * filters in the browser.
+   */
   useEffect(() => {
     let mounted = true;
 
@@ -82,46 +119,57 @@ export default function PropertyDiscovery() {
       const supabase = createClient();
 
       setIsLoading(true);
+      setFavoriteError("");
 
       const { data, error } = await supabase
         .from("properties")
         .select(
           `
-          *,
-          property_units (
-            id,
-            unit_label,
-            floor_label,
-            status,
-            rent_override,
-            bedrooms,
-            bathrooms,
-            area_sqft
-          )
-        `,
+            *,
+            property_units (
+              id,
+              unit_label,
+              floor_label,
+              status,
+              rent_override,
+              bedrooms,
+              bathrooms,
+              area_sqft
+            )
+          `,
         )
         .eq("listing_status", "active")
-        .eq("moderation_status", "clear")
         .or("verification_status.is.null,verification_status.neq.rejected")
         .order("created_at", {
           ascending: false,
         });
 
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
 
       if (error) {
         console.error("Failed to load properties:", error);
 
         setProperties([]);
-      } else {
-        setProperties((data ?? []).map(mapProperty));
+        setIsLoading(false);
+        return;
       }
 
+      const mappedProperties = (data ?? []).map(mapProperty);
+
+      setProperties(mappedProperties);
+
+      /*
+       * Load authentication/favorites independently.
+       */
       const {
         data: { user },
       } = await supabase.auth.getUser();
 
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
 
       if (user) {
         setIsAuthenticated(true);
@@ -129,20 +177,26 @@ export default function PropertyDiscovery() {
         try {
           const ids = await getFavoriteUserIds(supabase, user.id);
 
-          if (!mounted) return;
+          if (!mounted) {
+            return;
+          }
 
           setFavoriteUserIds(ids);
 
-          const { data: favorites } = await supabase
-            .from("favorites")
-            .select("property_id")
-            .in("user_id", ids);
+          if (ids.length > 0) {
+            const { data: favorites } = await supabase
+              .from("favorites")
+              .select("property_id")
+              .in("user_id", ids);
 
-          if (!mounted) return;
+            if (!mounted) {
+              return;
+            }
 
-          setSaved([
-            ...new Set((favorites ?? []).map((item) => item.property_id)),
-          ]);
+            setSaved([
+              ...new Set((favorites ?? []).map((item) => item.property_id)),
+            ]);
+          }
         } catch (error) {
           console.error("Failed to load favorites:", error);
 
@@ -160,6 +214,9 @@ export default function PropertyDiscovery() {
     };
   }, []);
 
+  /*
+   * SAVE / UNSAVE PROPERTY
+   */
   async function toggleSaved(propertyId: string) {
     if (favoriteUserIds.length === 0) {
       router.push(`/auth?mode=sign-in&next=${encodeURIComponent("/listings")}`);
@@ -185,7 +242,9 @@ export default function PropertyDiscovery() {
           .in("user_id", favoriteUserIds)
           .eq("property_id", propertyId);
 
-        if (error) throw error;
+        if (error) {
+          throw error;
+        }
       } else {
         await insertFavorite(supabase, favoriteUserIds, propertyId);
       }
@@ -206,17 +265,24 @@ export default function PropertyDiscovery() {
     }
   }
 
+  /*
+   * ACTUAL SEARCH + FILTER ENGINE
+   *
+   * This is the important part.
+   *
+   * For properties that have individual units,
+   * rent/bedroom/availability filtering is performed
+   * against the units rather than only the parent property.
+   */
   const visibleProperties = useMemo(() => {
     const searchTerm = normalise(filters.search);
 
     const minBedrooms =
       filters.minBedrooms === "any" ? null : Number(filters.minBedrooms);
 
-    const maxRent =
-      filters.maxRent.trim() === "" ? null : Number(filters.maxRent);
+    const maxRent = numberOrNull(filters.maxRent);
 
-    const minRent =
-      filters.minRent.trim() === "" ? null : Number(filters.minRent);
+    const minRent = numberOrNull(filters.minRent);
 
     const minTrust =
       filters.minTrust === "any" ? null : Number(filters.minTrust);
@@ -225,12 +291,38 @@ export default function PropertyDiscovery() {
       filters.minSafety === "any" ? null : Number(filters.minSafety);
 
     return properties.filter((property) => {
+      /*
+       * ----------------------------------------
+       * 1. TEXT SEARCH
+       * ----------------------------------------
+       *
+       * Search through:
+       * - property title
+       * - location
+       * - city/location text
+       * - property type
+       * - description
+       * - unit labels
+       *
+       * Example:
+       * "Rongai"
+       * "Sunrise"
+       * "Apartment"
+       * "1A"
+       * "3C"
+       */
+      const unitSearchText =
+        property.property_units
+          ?.map((unit) => [unit.unit_label, unit.floor_label].join(" "))
+          .join(" ") ?? "";
+
       const searchableText = normalise(
         [
           property.title,
           property.location,
           property.type,
           property.description,
+          unitSearchText,
         ].join(" "),
       );
 
@@ -238,6 +330,11 @@ export default function PropertyDiscovery() {
         return false;
       }
 
+      /*
+       * ----------------------------------------
+       * 2. PROPERTY TYPE
+       * ----------------------------------------
+       */
       if (
         filters.propertyType !== "all" &&
         normalise(property.type) !== normalise(filters.propertyType)
@@ -245,29 +342,150 @@ export default function PropertyDiscovery() {
         return false;
       }
 
-      if (minBedrooms !== null && property.bedrooms < minBedrooms) {
-        return false;
+      /*
+       * ----------------------------------------
+       * 3. UNIT AVAILABILITY
+       * ----------------------------------------
+       *
+       * If a property has units, availability
+       * is determined by those units.
+       *
+       * A property with:
+       *
+       * 1A available
+       * 2A occupied
+       * 3C reserved
+       *
+       * is still considered available.
+       */
+      const units = property.property_units ?? [];
+
+      const hasUnits = units.length > 0;
+
+      const availableUnits = units.filter(
+        (unit) => unit.status === "available",
+      );
+
+      if (filters.availability === "available") {
+        if (hasUnits) {
+          if (availableUnits.length === 0) {
+            return false;
+          }
+        }
       }
 
-      if (minRent !== null && property.rent < minRent) {
-        return false;
+      /*
+       * ----------------------------------------
+       * 4. BEDROOM FILTER
+       * ----------------------------------------
+       *
+       * For multi-unit properties:
+       *
+       * Apartment:
+       * 1A = 1 bedroom
+       * 2A = 2 bedrooms
+       * 3A = 3 bedrooms
+       *
+       * The property matches if at least one
+       * suitable unit matches.
+       */
+      if (minBedrooms !== null) {
+        if (hasUnits) {
+          const matchingUnit = availableUnits.some((unit) => {
+            const bedrooms = unit.bedrooms ?? property.bedrooms;
+
+            return bedrooms >= minBedrooms;
+          });
+
+          if (!matchingUnit) {
+            return false;
+          }
+        } else {
+          if (property.bedrooms < minBedrooms) {
+            return false;
+          }
+        }
       }
 
-      if (maxRent !== null && property.rent > maxRent) {
-        return false;
+      /*
+       * ----------------------------------------
+       * 5. RENT FILTER
+       * ----------------------------------------
+       *
+       * IMPORTANT:
+       *
+       * For a multi-unit property, we use
+       * rent_override for the individual unit.
+       *
+       * Example:
+       *
+       * Sunrise Apartments
+       * 1A = 25,000
+       * 2A = 32,000
+       * 3A = 35,000
+       *
+       * maxRent = 30,000
+       *
+       * Result:
+       * property MATCHES because 1A is available
+       * at 25,000.
+       */
+      if (maxRent !== null || minRent !== null) {
+        if (hasUnits) {
+          const matchingUnit = availableUnits.some((unit) => {
+            const unitRent = unit.rent_override ?? property.rent;
+
+            if (maxRent !== null && unitRent > maxRent) {
+              return false;
+            }
+
+            if (minRent !== null && unitRent < minRent) {
+              return false;
+            }
+
+            return true;
+          });
+
+          if (!matchingUnit) {
+            return false;
+          }
+        } else {
+          if (maxRent !== null && property.rent > maxRent) {
+            return false;
+          }
+
+          if (minRent !== null && property.rent < minRent) {
+            return false;
+          }
+        }
       }
 
+      /*
+       * ----------------------------------------
+       * 6. VERIFIED ONLY
+       * ----------------------------------------
+       */
       if (filters.verifiedOnly && !property.verified) {
         return false;
       }
 
-      const trustScore = Number((property as any).trust_score ?? 0);
+      /*
+       * ----------------------------------------
+       * 7. TRUST SCORE
+       * ----------------------------------------
+       */
+      const trustScore = Number(property.trust_score ?? 0);
 
       if (minTrust !== null && trustScore < minTrust) {
         return false;
       }
 
-      const safetyScore = Number((property as any).safety_score ?? 0);
+      /*
+       * ----------------------------------------
+       * 8. SAFETY SCORE
+       * ----------------------------------------
+       */
+      const safetyScore = Number(property.safety_score ?? 0);
 
       if (minSafety !== null && safetyScore < minSafety) {
         return false;
@@ -288,7 +506,9 @@ export default function PropertyDiscovery() {
   }
 
   function clearFilters() {
-    setFilters(defaultFilters);
+    setFilters({
+      ...defaultFilters,
+    });
   }
 
   const activeFilterCount = [
@@ -296,6 +516,7 @@ export default function PropertyDiscovery() {
     filters.minBedrooms !== "any",
     filters.maxRent !== "",
     filters.minRent !== "",
+    filters.availability !== "available",
     filters.verifiedOnly,
     filters.minTrust !== "any",
     filters.minSafety !== "any",
@@ -318,22 +539,22 @@ export default function PropertyDiscovery() {
 
         <nav className="main-nav" aria-label="House hunter navigation">
           <a className="nav-item active" href="/listings">
-            <span>⌂</span>
+            <HiHome aria-hidden="true" />
             Discover
           </a>
 
           <Link className="nav-item" href="/dashboard/favorites">
-            <span>♡</span>
+            <HiHeart aria-hidden="true" />
             Favorites <b>{saved.length || ""}</b>
           </Link>
 
           <Link className="nav-item" href="/dashboard/messages">
-            <span>◷</span>
+            <HiChatBubbleLeftRight aria-hidden="true" />
             Messages
           </Link>
 
           <Link className="nav-item" href="/dashboard/profile">
-            <span>◉</span>
+            <HiUser aria-hidden="true" />
             Profile
           </Link>
         </nav>
@@ -344,7 +565,7 @@ export default function PropertyDiscovery() {
           <strong>See the whole story behind every home.</strong>
 
           <a href="/tools/budget" className="text-button">
-            Check your budget <span>↗</span>
+            Check your budget <HiArrowUpRight aria-hidden="true" />
           </a>
         </div>
 
@@ -393,14 +614,15 @@ export default function PropertyDiscovery() {
             </div>
           </div>
 
+          {/* SEARCH */}
           <section className="search-bar">
-            <span className="search-icon">⌕</span>
+            <HiMagnifyingGlass className="search-icon" aria-hidden="true" />
 
             <input
               value={filters.search}
               onChange={(event) => updateFilter("search", event.target.value)}
               aria-label="Search properties"
-              placeholder="Search by location, neighbourhood or property name"
+              placeholder="Search by location, neighbourhood, property name or unit"
             />
 
             <button
@@ -410,13 +632,15 @@ export default function PropertyDiscovery() {
             >
               Filters
               {activeFilterCount > 0 ? ` (${activeFilterCount})` : ""}
-              <span>{showFilters ? "−" : "＋"}</span>
+              <span>{showFilters ? <HiMinus aria-hidden="true" /> : <HiPlus aria-hidden="true" />}</span>
             </button>
           </section>
 
+          {/* FILTER PANEL */}
           {showFilters && (
             <section className="rounded-3xl border border-black/10 bg-white p-6 shadow-sm">
               <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-4">
+                {/* PROPERTY TYPE */}
                 <label className="space-y-2">
                   <span className="text-sm font-medium">Property type</span>
 
@@ -435,6 +659,7 @@ export default function PropertyDiscovery() {
                   </select>
                 </label>
 
+                {/* BEDROOMS */}
                 <label className="space-y-2">
                   <span className="text-sm font-medium">Minimum bedrooms</span>
 
@@ -446,24 +671,21 @@ export default function PropertyDiscovery() {
                     className="w-full rounded-xl border border-black/10 px-4 py-3"
                   >
                     <option value="any">Any</option>
-
                     <option value="1">1+</option>
-
                     <option value="2">2+</option>
-
                     <option value="3">3+</option>
-
                     <option value="4">4+</option>
-
                     <option value="5">5+</option>
                   </select>
                 </label>
 
+                {/* MIN RENT */}
                 <label className="space-y-2">
                   <span className="text-sm font-medium">Minimum rent</span>
 
                   <input
                     type="number"
+                    min="0"
                     value={filters.minRent}
                     onChange={(event) =>
                       updateFilter("minRent", event.target.value)
@@ -473,11 +695,13 @@ export default function PropertyDiscovery() {
                   />
                 </label>
 
+                {/* MAX RENT */}
                 <label className="space-y-2">
                   <span className="text-sm font-medium">Maximum rent</span>
 
                   <input
                     type="number"
+                    min="0"
                     value={filters.maxRent}
                     onChange={(event) =>
                       updateFilter("maxRent", event.target.value)
@@ -487,6 +711,7 @@ export default function PropertyDiscovery() {
                   />
                 </label>
 
+                {/* AVAILABILITY */}
                 <label className="space-y-2">
                   <span className="text-sm font-medium">Availability</span>
 
@@ -503,6 +728,7 @@ export default function PropertyDiscovery() {
                   </select>
                 </label>
 
+                {/* TRUST */}
                 <label className="space-y-2">
                   <span className="text-sm font-medium">Minimum trust</span>
 
@@ -514,17 +740,14 @@ export default function PropertyDiscovery() {
                     className="w-full rounded-xl border border-black/10 px-4 py-3"
                   >
                     <option value="any">Any</option>
-
                     <option value="60">60+</option>
-
                     <option value="70">70+</option>
-
                     <option value="80">80+</option>
-
                     <option value="90">90+</option>
                   </select>
                 </label>
 
+                {/* SAFETY */}
                 <label className="space-y-2">
                   <span className="text-sm font-medium">Minimum safety</span>
 
@@ -536,17 +759,14 @@ export default function PropertyDiscovery() {
                     className="w-full rounded-xl border border-black/10 px-4 py-3"
                   >
                     <option value="any">Any</option>
-
                     <option value="60">60+</option>
-
                     <option value="70">70+</option>
-
                     <option value="80">80+</option>
-
                     <option value="90">90+</option>
                   </select>
                 </label>
 
+                {/* VERIFIED */}
                 <label className="flex items-center gap-3 self-end rounded-xl border border-black/10 px-4 py-3">
                   <input
                     type="checkbox"
@@ -562,7 +782,12 @@ export default function PropertyDiscovery() {
                 </label>
               </div>
 
-              <div className="mt-5 flex justify-end">
+              <div className="mt-5 flex justify-between gap-3">
+                <div className="text-sm text-black/50">
+                  {visibleProperties.length} matching{" "}
+                  {visibleProperties.length === 1 ? "property" : "properties"}
+                </div>
+
                 <button
                   type="button"
                   onClick={clearFilters}
@@ -574,6 +799,7 @@ export default function PropertyDiscovery() {
             </section>
           )}
 
+          {/* RESULTS HEADING */}
           <div className="section-heading">
             <div>
               <span className="eyebrow">Search results</span>
@@ -588,6 +814,7 @@ export default function PropertyDiscovery() {
             </div>
           </div>
 
+          {/* QUICK TYPE FILTERS */}
           <div
             className="filter-tabs"
             role="tablist"
@@ -619,6 +846,7 @@ export default function PropertyDiscovery() {
             </div>
           )}
 
+          {/* RESULTS */}
           {isLoading ? (
             <div className="listing-state">
               <span className="state-mark">⌁</span>
@@ -660,8 +888,11 @@ export default function PropertyDiscovery() {
             </div>
           )}
 
+          {/* INTELLIGENCE BANNER */}
           <div className="intelligence-banner">
-            <div className="banner-mark">✦</div>
+            <div className="banner-mark" aria-hidden="true">
+              <HiStar />
+            </div>
 
             <div>
               <span className="eyebrow">A better way to decide</span>
@@ -675,7 +906,7 @@ export default function PropertyDiscovery() {
             </div>
 
             <a href="/about" className="dark-button">
-              How it works <span>↗</span>
+                How it works <HiArrowUpRight aria-hidden="true" />
             </a>
           </div>
         </div>

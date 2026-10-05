@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { HiArrowUpRight, HiHeart, HiOutlineHeart } from "react-icons/hi2";
 import type { Property } from "../lib/properties";
 
 type PropertyCardProps = {
@@ -77,7 +78,7 @@ export default function PropertyCard({
           aria-pressed={isSaved}
           aria-busy={isSaving}
         >
-          {isSaved ? "♥" : "♡"}
+          {isSaved ? <HiHeart aria-hidden="true" /> : <HiOutlineHeart aria-hidden="true" />}
         </button>
       </div>
       <div className="property-body">
@@ -117,7 +118,7 @@ export default function PropertyCard({
           </span>
 
           <Link className="card-link" href={propertyHref}>
-            View intelligence <span>↗</span>
+            View intelligence <HiArrowUpRight aria-hidden="true" />
           </Link>
         </div>
 

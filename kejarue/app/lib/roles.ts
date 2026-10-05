@@ -1,23 +1,48 @@
+import type { IconType } from "react-icons";
+import { HiHome, HiBuildingOffice2, HiKey } from "react-icons/hi2";
+
+export function normalizeRole(value: string | null | undefined) {
+  const normalizedValue =
+    typeof value === "string"
+      ? value.trim().toLowerCase().replace(/_/g, "-")
+      : value;
+
+  if (normalizedValue === "house-hunter") {
+    return "house-hunter" as const;
+  }
+
+  if (normalizedValue === "agent" || normalizedValue === "landlord") {
+    return normalizedValue;
+  }
+
+  return null;
+}
+
 export const roles = [
   {
     id: "house-hunter",
     label: "House hunter",
     description: "Find, compare and understand homes before you commit.",
-    icon: "⌂",
+    icon: HiHome,
   },
   {
     id: "agent",
     label: "Real estate agent",
     description: "Manage listings, enquiries and your professional reputation.",
-    icon: "▦",
+    icon: HiBuildingOffice2,
   },
   {
     id: "landlord",
     label: "Landlord",
     description: "Manage your properties and see how they perform.",
-    icon: "⌂",
+    icon: HiKey,
   },
-] as const;
+] as const satisfies ReadonlyArray<{
+  id: string;
+  label: string;
+  description: string;
+  icon: IconType;
+}>;
 
 export type RoleId = (typeof roles)[number]["id"];
 

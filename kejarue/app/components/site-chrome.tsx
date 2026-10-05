@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { HiArrowUpRight } from "react-icons/hi2";
 
 type SiteNavbarProps = {
   backHref?: string;
@@ -23,7 +24,7 @@ export function SiteNavbar({ backHref, backLabel, children }: SiteNavbarProps) {
       {children ||
         (backHref && backLabel ? (
           <Link href={backHref} className="text-button">
-            {backLabel} <span>↗</span>
+            {backLabel} <HiArrowUpRight aria-hidden="true" />
           </Link>
         ) : null)}
     </header>

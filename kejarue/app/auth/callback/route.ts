@@ -1,29 +1,13 @@
 import { NextResponse } from "next/server";
 import { createClient } from "../../backend/supabase/server";
+import { normalizeRole, type RoleId } from "../../lib/roles";
 
-type RoleId =
-  | "house-hunter"
-  | "agent"
-  | "landlord";
-
-function isValidRole(
-  value: string | null
-): value is RoleId {
-  return (
-    value === "house-hunter" ||
-    value === "agent" ||
-    value === "landlord"
-  );
+function isValidRole(value: string | null): value is RoleId {
+  return normalizeRole(value) !== null;
 }
 
-function toDatabaseRole(
-  role: RoleId
-) {
-  if (role === "house-hunter") {
-    return "house_hunter";
-  }
-
-  return role;
+function toDatabaseRole(role: RoleId) {
+  return role === "house-hunter" ? "house_hunter" : role;
 }
 
 export async function GET(

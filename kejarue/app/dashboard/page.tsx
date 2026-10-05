@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { HiArrowUpRight } from "react-icons/hi2";
 import { getCurrentUserProfile, toRoleId } from "../lib/auth";
 import { roles, type RoleId, workspaceNavigation } from "../lib/roles";
 import { SiteFooter, SiteNavbar } from "../components/site-chrome";
@@ -99,7 +100,7 @@ export default async function DashboardPage() {
             </div>
 
             <Link href="/auth" className="dark-button">
-              Sign in <span>↗</span>
+              Sign in <HiArrowUpRight aria-hidden="true" />
             </Link>
           </div>
         </section>
@@ -278,7 +279,7 @@ export default async function DashboardPage() {
 
                   <strong>{action.label}</strong>
 
-                  <span>↗</span>
+                  <HiArrowUpRight aria-hidden="true" />
                 </Link>
               ))}
             </div>
@@ -295,7 +296,7 @@ export default async function DashboardPage() {
             </p>
 
             <Link href="/" className="text-button">
-              Explore homes <span>↗</span>
+              Explore homes <HiArrowUpRight aria-hidden="true" />
             </Link>
           </aside>
         </div>

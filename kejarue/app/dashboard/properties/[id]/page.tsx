@@ -968,7 +968,7 @@ export default function PropertyManagementPage() {
             <form className="management-card" onSubmit={saveProperty}>
               <div className="management-card-heading">
                 <div>
-                  <span className="eyebrow">01 · Listing</span>
+                  <span className="eyebrow">01 · Basic listing details</span>
 
                   <h2>Property details</h2>
                 </div>

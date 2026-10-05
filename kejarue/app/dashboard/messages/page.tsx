@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
+import { HiArrowLeft, HiArrowUpRight } from "react-icons/hi2";
 import { createClient } from "../../backend/supabase/client";
 import DashboardAccountActions from "../../components/dashboard-account-actions";
 
@@ -475,7 +476,7 @@ export default function MessagesPage() {
               fontSize: 15,
             }}
           >
-            ← Back to dashboard
+            <HiArrowLeft aria-hidden="true" /> Back to dashboard
           </Link>
           <DashboardAccountActions />
         </div>
@@ -709,7 +710,7 @@ export default function MessagesPage() {
                         fontSize: 14,
                       }}
                     >
-                      View property ↗
+                      View property <HiArrowUpRight size={14} aria-hidden="true" />
                     </Link>
                   )}
                 </div>

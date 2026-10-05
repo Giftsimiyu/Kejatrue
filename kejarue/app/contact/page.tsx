@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { HiArrowUpRight } from "react-icons/hi2";
 import { PublicPage } from "../components/public-page";
 
 export default function ContactPage() {
@@ -16,7 +17,7 @@ export default function ContactPage() {
           step.
         </p>
         <Link href="mailto:hello@kejatrue.com" className="dark-button">
-          Email KejaTrue <span>↗</span>
+          Email KejaTrue <HiArrowUpRight aria-hidden="true" />
         </Link>
       </div>
     </PublicPage>

@@ -3,6 +3,15 @@
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
+import {
+  HiArrowLeft,
+  HiArrowUpRight,
+  HiCheckCircle,
+  HiHeart,
+  HiOutlineHeart,
+  HiHome,
+  HiStar,
+} from "react-icons/hi2";
 import { createClient } from "../../backend/supabase/client";
 import { getFavoriteUserIds, insertFavorite } from "../../lib/favorite-user";
 import { SiteFooter, SiteNavbar } from "../../components/site-chrome";
@@ -537,7 +546,7 @@ export default function PublicPropertyPage() {
 
         <main className="public-property-page">
           <div className="property-not-found">
-            <div className="property-not-found-icon">⌂</div>
+            <div className="property-not-found-icon"><HiHome aria-hidden="true" /></div>
 
             <h1>Property not found</h1>
 
@@ -611,7 +620,7 @@ export default function PublicPropertyPage() {
       <main className="public-property-page">
         <div className="public-property-container">
           <Link href="/listings" className="property-back-link">
-            ← Back to listings
+            <HiArrowLeft aria-hidden="true" /> Back to listings
           </Link>
 
           <section className="property-public-header">
@@ -639,7 +648,7 @@ export default function PublicPropertyPage() {
                 onClick={toggleFavorite}
                 disabled={saving}
               >
-                {isSaved ? "♥ Saved" : "♡ Save"}
+                {isSaved ? <><HiHeart aria-hidden="true" /> Saved</> : <><HiOutlineHeart aria-hidden="true" /> Save</>}
               </button>
 
               <button
@@ -647,7 +656,7 @@ export default function PublicPropertyPage() {
                 className="property-outline-button"
                 onClick={addToCompare}
               >
-                ⇄ Compare
+                <HiArrowUpRight aria-hidden="true" /> Compare
               </button>
             </div>
           </section>
@@ -663,14 +672,14 @@ export default function PublicPropertyPage() {
                 <img src={mainImage} alt={property.title} />
               ) : (
                 <div className="property-image-placeholder">
-                  <span>⌂</span>
+                  <HiHome aria-hidden="true" />
                   <p>No property photos available</p>
                 </div>
               )}
 
               {property.verification_status === "verified" && (
                 <div className="property-verified-badge">
-                  ✓ Verified listing
+                  <HiHeart aria-hidden="true" /> Verified listing
                 </div>
               )}
             </div>
@@ -848,7 +857,7 @@ export default function PublicPropertyPage() {
 
                   <div className="property-tags">
                     {property.amenities?.map((amenity) => (
-                      <span key={`amenity-${amenity}`}>✓ {amenity}</span>
+                      <span key={`amenity-${amenity}`}><HiOutlineHeart aria-hidden="true" /> {amenity}</span>
                     ))}
 
                     {property.tags?.map((tag) => (
@@ -938,7 +947,7 @@ export default function PublicPropertyPage() {
                     <div className="property-review-summary">
                       <strong>{averageReviewRating.toFixed(1)}</strong>
                       <span>
-                        ★ · {reviews.length}{" "}
+                        <HiStar aria-hidden="true" /> · {reviews.length}{" "}
                         {reviews.length === 1 ? "review" : "reviews"}
                       </span>
                     </div>
@@ -961,7 +970,7 @@ export default function PublicPropertyPage() {
 
                             {review.is_verified_tenant && (
                               <span className="verified-review-label">
-                                ✓ Verified tenant
+                                <HiCheckCircle aria-hidden="true" /> Verified tenant
                               </span>
                             )}
                           </div>
@@ -1123,7 +1132,7 @@ export default function PublicPropertyPage() {
                 </div>
 
                 <Link href="#intelligence" className="property-sidebar-link">
-                  Understand this score →
+                  Understand this score <HiArrowUpRight aria-hidden="true" />
                 </Link>
               </div>
 
@@ -1206,7 +1215,7 @@ export default function PublicPropertyPage() {
 
                         {agent.verified && (
                           <span className="verified-review-label">
-                            ✓ Verified agent
+                            <HiCheckCircle aria-hidden="true" /> Verified agent
                           </span>
                         )}
                       </div>
@@ -1214,7 +1223,7 @@ export default function PublicPropertyPage() {
 
                     {agent.rating !== null && (
                       <div className="agent-rating">
-                        ★ {Number(agent.rating).toFixed(1)}
+                        <HiStar aria-hidden="true" /> {Number(agent.rating).toFixed(1)}
                       </div>
                     )}
 

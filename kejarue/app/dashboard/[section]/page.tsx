@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { HiArrowUpRight } from "react-icons/hi2";
 
 import { getCurrentUserProfile, toRoleId } from "../../lib/auth";
 
@@ -126,7 +127,7 @@ export default async function DashboardPage() {
             </div>
 
             <Link href="/auth?mode=sign-in" className="dark-button">
-              Sign in <span>↗</span>
+              Sign in <HiArrowUpRight aria-hidden="true" />
             </Link>
           </div>
         </section>
@@ -292,7 +293,7 @@ export default async function DashboardPage() {
           </div>
 
           <Link href="/dashboard/properties/new" className="dark-button">
-            Add property <span>↗</span>
+            Add property <HiArrowUpRight aria-hidden="true" />
           </Link>
         </div>
 
@@ -359,7 +360,7 @@ export default async function DashboardPage() {
 
               {totalProperties > 0 && (
                 <Link href="/dashboard/properties" className="text-button">
-                  View all <span>↗</span>
+                  View all <HiArrowUpRight aria-hidden="true" />
                 </Link>
               )}
             </div>
@@ -384,7 +385,7 @@ export default async function DashboardPage() {
 
                 <Link href="/dashboard/properties/new" className="dark-button">
                   Add your first property
-                  <span>↗</span>
+                  <HiArrowUpRight aria-hidden="true" />
                 </Link>
               </div>
             )}
@@ -435,7 +436,9 @@ export default async function DashboardPage() {
                           ? "Trust —"
                           : `Trust ${Math.round(property.trust_score)}`}
 
-                        <b>↗</b>
+                        <b aria-hidden="true">
+                          <HiArrowUpRight />
+                        </b>
                       </span>
                     </div>
                   </Link>
@@ -462,7 +465,7 @@ export default async function DashboardPage() {
 
                   <strong>Add a property</strong>
 
-                  <b>↗</b>
+                  <b aria-hidden="true"><HiArrowUpRight /></b>
                 </Link>
 
                 <Link href="/dashboard/properties">
@@ -470,7 +473,7 @@ export default async function DashboardPage() {
 
                   <strong>Manage properties</strong>
 
-                  <b>↗</b>
+                  <b aria-hidden="true"><HiArrowUpRight /></b>
                 </Link>
 
                 <Link href="/dashboard/messages">
@@ -478,7 +481,7 @@ export default async function DashboardPage() {
 
                   <strong>View messages</strong>
 
-                  <b>↗</b>
+                  <b aria-hidden="true"><HiArrowUpRight /></b>
                 </Link>
 
                 <Link href="/dashboard/analytics">
@@ -486,7 +489,7 @@ export default async function DashboardPage() {
 
                   <strong>View analytics</strong>
 
-                  <b>↗</b>
+                  <b aria-hidden="true"><HiArrowUpRight /></b>
                 </Link>
               </div>
             </section>
@@ -528,7 +531,7 @@ export default async function DashboardPage() {
             </p>
 
             <Link href="/dashboard/profile" className="text-button">
-              Complete profile <span>↗</span>
+              Complete profile <HiArrowUpRight aria-hidden="true" />
             </Link>
           </div>
         </section>
